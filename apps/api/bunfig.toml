@@ -1,0 +1,4 @@
+[test]
+
+[test.env]
+DATABASE_URL = "postgres://expense:expense@localhost:5555/expense_tracker_test"

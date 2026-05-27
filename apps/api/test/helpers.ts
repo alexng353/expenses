@@ -19,7 +19,10 @@ export async function cleanDatabase() {
   `);
 }
 
+let closed = false;
 export async function closeDatabase() {
+  if (closed) return;
+  closed = true;
   await client.end();
 }
 

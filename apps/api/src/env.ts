@@ -12,6 +12,13 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
   SIGNED_URL_SECRET: z.string().default("dev-secret-change-in-prod"),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z
+    .string()
+    .default("http://localhost:8888/api/auth/google/callback"),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default("Expense Tracker <noreply@expenses.example.com>"),
 });
 
 export const env = envSchema.parse(process.env);

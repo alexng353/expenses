@@ -1,15 +1,15 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { eq } from "drizzle-orm";
-import { testDb, cleanDatabase, closeDatabase, createTestUser, createTestEvent } from "./helpers";
+import { testDb, cleanDatabase, createTestUser, createTestEvent } from "./helpers";
 import * as schema from "../src/db/schema";
 
 beforeEach(async () => {
   await cleanDatabase();
 });
 
-afterAll(async () => {
-  await closeDatabase();
-});
+// closeDatabase() intentionally omitted — bun runs test files concurrently
+// in the same process, so closing the shared client in afterAll would break
+// other test files still running. The connection closes on process exit.
 
 describe("users", () => {
   test("creates a user with required fields", async () => {
