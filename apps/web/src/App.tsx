@@ -1,19 +1,28 @@
-import { Button } from "@workspace/ui/components/button"
+import { Routes, Route, Navigate } from "react-router";
+import { ProtectedRoute } from "./components/layout/protected-route";
+import { EventProvider } from "./hooks/use-event";
+import LoginPage from "./pages/login";
+import RegisterPage from "./pages/register";
+import VerifyEmailPage from "./pages/verify-email";
+import DashboardPage from "./pages/dashboard";
 
-export function App() {
+export default function App() {
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="text-muted-foreground font-mono text-xs">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
-  )
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register/:inviteToken" element={<RegisterPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <EventProvider>
+              <DashboardPage />
+            </EventProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
