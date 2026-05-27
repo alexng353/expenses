@@ -31,3 +31,11 @@ dist-ssr
 
 # typescript
 *.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Uploads (dev storage)
+apps/api/uploads/
