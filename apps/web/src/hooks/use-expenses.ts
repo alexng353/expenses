@@ -11,7 +11,6 @@ export function useExpenses() {
     queryKey: ["events", eventId, "expenses"],
     queryFn: () => api<Expense[]>(`/events/${eventId}/expenses`),
     enabled: !!eventId,
-    refetchInterval: 10_000, // Polling bridge until WebSocket (Plan 5)
   });
 }
 
@@ -23,7 +22,6 @@ export function useExpenseSummary() {
     queryKey: ["events", eventId, "summary"],
     queryFn: () => api<EventSummary>(`/events/${eventId}/summary`),
     enabled: !!eventId,
-    refetchInterval: 10_000,
   });
 }
 

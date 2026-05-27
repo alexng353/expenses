@@ -8,9 +8,12 @@ import { expensesModule } from "./modules/expenses";
 import { auditModule } from "./modules/audit";
 import { autocompleteModule } from "./modules/autocomplete";
 import { storageModule } from "./modules/storage";
+import { wsModule } from "./modules/ws";
+import { exportModule } from "./modules/export";
 
 const app = new Elysia()
   .use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
+  .use(wsModule)
   .get("/api/health", () => ({ status: "ok" }))
   .group("/api", (app) =>
     app
@@ -21,6 +24,7 @@ const app = new Elysia()
       .use(auditModule)
       .use(autocompleteModule)
       .use(storageModule)
+      .use(exportModule)
   )
   .listen(env.PORT);
 

@@ -15,6 +15,7 @@ import {
 } from "../../lib/audit";
 import { createStorageBackend } from "../../storage";
 import { env } from "../../env";
+import { broadcastToEvent } from "../../lib/ws-broadcast";
 
 const storage = createStorageBackend(env);
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
@@ -110,6 +111,11 @@ export const expensesModule = new Elysia({
         performedById: user!.id,
       });
 
+      broadcastToEvent(params.eventId, {
+        type: "expense_created",
+        payload: expense,
+      });
+
       return expense;
     },
     {
@@ -190,6 +196,11 @@ export const expensesModule = new Elysia({
         });
       }
 
+      broadcastToEvent(params.eventId, {
+        type: "expense_updated",
+        payload: updated,
+      });
+
       return updated;
     },
     {
@@ -266,6 +277,11 @@ export const expensesModule = new Elysia({
         performedById: user!.id,
       });
 
+      broadcastToEvent(params.eventId, {
+        type: "expense_deleted",
+        payload: { id: params.expenseId },
+      });
+
       return { ok: true };
     }
   )
@@ -318,6 +334,11 @@ export const expensesModule = new Elysia({
         action: "update",
         changes: { status: { old: "awaiting_approval", new: "approved" } },
         performedById: user!.id,
+      });
+
+      broadcastToEvent(params.eventId, {
+        type: "expense_updated",
+        payload: updated,
       });
 
       return updated;

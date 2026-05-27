@@ -22,6 +22,7 @@ import {
 import { authPlugin } from "./guards";
 import { checkRateLimit } from "../../lib/rate-limit";
 import { env } from "../../env";
+import { createWsToken } from "../../lib/ws-tokens";
 
 export const authModule = new Elysia({ prefix: "/auth" })
   // === Registration (invite required) ===
@@ -520,6 +521,16 @@ export const authModule = new Elysia({ prefix: "/auth" })
         ? `data:image/jpeg;base64,${user.avatarThumbnail.toString("base64")}`
         : null,
     };
+  })
+
+  // Issue short-lived WebSocket auth token (5 min TTL, single-use)
+  .post("/ws-token", ({ user, set }) => {
+    if (!user) {
+      set.status = 401;
+      return { error: "Not authenticated" };
+    }
+    const token = createWsToken(user.id);
+    return { token };
   })
 
   // Logout

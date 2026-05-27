@@ -13,6 +13,8 @@ import { SummaryPanel } from "../components/summary/summary-panel";
 import { ReceiptDialog } from "../components/expenses/receipt-dialog";
 import { useEvent } from "../hooks/use-event";
 import { useExpenses } from "../hooks/use-expenses";
+import { useExpenseWebSocket } from "../hooks/use-websocket";
+import { ExportButton } from "../components/exports/export-button";
 import { Button } from "@workspace/ui/components/button";
 import {
   Tabs,
@@ -27,6 +29,7 @@ export default function DashboardPage() {
   const { currentEvent, members, buckets, grantCategories, isLoading } =
     useEvent();
   const { data: expenses = [], isLoading: expensesLoading } = useExpenses();
+  useExpenseWebSocket();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalExpense, setModalExpense] = useState<Expense | null>(null);
@@ -73,10 +76,13 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          <Button onClick={() => handleOpenModal()}>
-            <Plus className="mr-1.5 size-4" />
-            Add Expense
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton />
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="mr-1.5 size-4" />
+              Add Expense
+            </Button>
+          </div>
         </div>
 
         {/* Main content: table/kanban + summary sidebar */}
