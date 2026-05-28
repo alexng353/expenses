@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 const DRAG_THRESHOLD = 3;
 
 const INTERACTIVE_SELECTORS =
-  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"], [data-slot="popover-trigger"], [data-editable]';
+  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"], [data-slot="popover-trigger"], [data-editable], [class*="cursor-col-resize"], thead';
 
 function isInteractive(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;

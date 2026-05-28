@@ -108,7 +108,7 @@ export function ExpenseTable({
     getFilteredRowModel: getFilteredRowModel(),
     getRowId: (row) => row.id,
     enableColumnResizing: true,
-    columnResizeMode: "onChange",
+    columnResizeMode: "onEnd",
   });
 
   const { rows } = table.getRowModel();
@@ -300,7 +300,7 @@ export function ExpenseTable({
           maxHeight: "calc(100vh - 280px)",
         }}
       >
-        <Table style={{ tableLayout: "fixed" }}>
+        <Table style={{ tableLayout: "fixed", width: table.getTotalSize() }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
