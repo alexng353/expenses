@@ -5,6 +5,7 @@ import LoginPage from "./pages/login"
 import RegisterPage from "./pages/register"
 import VerifyEmailPage from "./pages/verify-email"
 import DashboardPage from "./pages/dashboard"
+import SettingsPage from "./pages/settings"
 
 export default function App() {
   return (
@@ -18,6 +19,16 @@ export default function App() {
           <ProtectedRoute>
             <EventProvider>
               <DashboardPage />
+            </EventProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <EventProvider>
+              <SettingsPage />
             </EventProvider>
           </ProtectedRoute>
         }
