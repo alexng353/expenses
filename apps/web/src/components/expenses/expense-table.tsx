@@ -542,7 +542,7 @@ export function ExpenseTable({
         </span>
         <div className="ml-2 flex items-center gap-1">
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className="h-7"
             disabled={selectedCount === 0}
@@ -552,7 +552,7 @@ export function ExpenseTable({
             Mark Paid
           </Button>
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className="h-7"
             disabled={selectedCount === 0}
@@ -561,7 +561,7 @@ export function ExpenseTable({
             Mark Approved
           </Button>
           <Button
-            variant="secondary"
+            variant="outline"
             size="sm"
             className="h-7"
             disabled={selectedCount === 0}
@@ -570,9 +570,9 @@ export function ExpenseTable({
             Mark Outstanding
           </Button>
           <Button
-            variant="destructive"
+            variant="outline"
             size="sm"
-            className="h-7"
+            className="h-7 border-destructive/40 text-destructive hover:bg-destructive/20 hover:text-destructive"
             disabled={selectedCount === 0}
             onClick={handleBulkDelete}
           >
