@@ -667,9 +667,9 @@ export function ExpenseTable({
   )
 
   return (
-    <div className="space-y-2">
+    <div className="flex h-full flex-col gap-2">
       {/* Bulk actions toolbar — always visible */}
-      <div className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm">
+      <div className="flex shrink-0 items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm">
         <span className={`font-medium ${selectedCount === 0 ? "text-muted-foreground" : ""}`}>
           {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
         </span>
@@ -728,10 +728,9 @@ export function ExpenseTable({
       <div
         ref={containerRef}
         {...getContainerProps()}
+        className="min-h-0 flex-1 overflow-auto rounded-lg border"
         style={{
           ...getContainerProps().style,
-          maxHeight: "calc(100vh - 280px)",
-          overflow: "auto",
         }}
       >
         <AgGridReact<Expense>

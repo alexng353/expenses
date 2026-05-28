@@ -64,9 +64,9 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="px-4 lg:px-6">
+      <div className="flex h-full flex-col p-4 lg:p-6">
         {/* Header row */}
-        <div className="mb-4 flex items-start justify-between gap-4">
+        <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">{currentEvent.name}</h2>
             {currentEvent.description && (
@@ -85,11 +85,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Main content: table/kanban + summary sidebar */}
-        <div className="flex gap-6">
+        <div className="flex min-h-0 flex-1 gap-6">
           {/* Left: main content */}
-          <div className="min-w-0 flex-1">
-            <Tabs defaultValue="table">
-              <TabsList>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Tabs defaultValue="table" className="flex min-h-0 flex-1 flex-col">
+              <TabsList className="shrink-0">
                 <TabsTrigger value="table">
                   <Table2 className="mr-1.5 size-4" />
                   Table
@@ -100,7 +100,10 @@ export default function DashboardPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="table" className="mt-3">
+              <TabsContent
+                value="table"
+                className="mt-3 min-h-0 flex-1 overflow-hidden"
+              >
                 {expensesLoading ? (
                   <div className="flex h-40 items-center justify-center">
                     <p className="text-muted-foreground">Loading expenses...</p>
@@ -119,7 +122,10 @@ export default function DashboardPage() {
                 )}
               </TabsContent>
 
-              <TabsContent value="kanban" className="mt-3">
+              <TabsContent
+                value="kanban"
+                className="mt-3 min-h-0 flex-1 overflow-auto"
+              >
                 {expensesLoading ? (
                   <div className="flex h-40 items-center justify-center">
                     <p className="text-muted-foreground">Loading expenses...</p>
@@ -139,7 +145,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Right: summary sidebar */}
-          <div className="hidden w-72 shrink-0 lg:block">
+          <div className="hidden w-72 shrink-0 overflow-auto lg:block">
             <SummaryPanel
               selectedExpenses={selectedExpenses}
               buckets={buckets}

@@ -8,8 +8,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { events, currentEvent, setCurrentEventId } = useEvent()
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-4 py-3">
+    <div className="flex h-screen flex-col">
+      <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-4">
           <h1 className="font-semibold">Expense Tracker</h1>
           <select
@@ -28,10 +28,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="text-sm text-muted-foreground">{user?.name}</span>
           {user?.isSuper && (
             <a
-              href="/admin"
-              className={buttonVariants({ variant: "outline", size: "sm" })}
+              href="/settings"
+              className={buttonVariants({ variant: "outline", size: "sm" }) + " leading-none"}
             >
-              Admin
+              Settings
             </a>
           )}
           <Button variant="ghost" size="sm" onClick={logout}>
@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
     </div>
   )
 }
