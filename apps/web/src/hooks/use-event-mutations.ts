@@ -42,6 +42,28 @@ export function useCreateUser() {
   })
 }
 
+export function useUpdateUser() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...data
+    }: {
+      id: string
+      name?: string
+      isSuper?: boolean
+    }) =>
+      api<AdminUser>(`/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
 export function useArchiveUser() {
   const qc = useQueryClient()
 
@@ -71,15 +93,18 @@ export function useUpdateEvent() {
   const { currentEvent } = useEvent()
 
   return useMutation({
-    mutationFn: (
-      data: Partial<
-        Pick<Event, "name" | "description" | "grantMode" | "currency">
-      >
-    ) =>
-      api<Event>(`/events/${currentEvent!.id}`, {
+    mutationFn: ({
+      id,
+      ...data
+    }: Partial<
+      Pick<Event, "name" | "description" | "grantMode" | "currency">
+    > & { id?: string }) => {
+      const eventId = id ?? currentEvent!.id
+      return api<Event>(`/events/${eventId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
-      }),
+      })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] })
     },
@@ -179,13 +204,7 @@ export function useRenameGrantCategory() {
   const { currentEvent } = useEvent()
 
   return useMutation({
-    mutationFn: ({
-      categoryId,
-      name,
-    }: {
-      categoryId: string
-      name: string
-    }) =>
+    mutationFn: ({ categoryId, name }: { categoryId: string; name: string }) =>
       api<GrantCategory>(
         `/events/${currentEvent!.id}/grant-categories/${categoryId}`,
         {

@@ -1,15 +1,16 @@
-import { useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router"
+import { useCallback, useMemo, useState } from "react"
+import { useNavigate } from "react-router"
 import { AgGridReact } from "ag-grid-react"
 import type {
   ColDef,
   ICellRendererParams,
   ValueGetterParams,
+  CellValueChangedEvent,
 } from "ag-grid-community"
 import { AppShell } from "../components/layout/app-shell"
 import { useAuth } from "../hooks/use-auth"
 import { useEvent } from "../hooks/use-event"
-import { useCreateEvent } from "../hooks/use-event-mutations"
+import { useCreateEvent, useUpdateEvent } from "../hooks/use-event-mutations"
 import { agTheme } from "../lib/ag-grid-theme"
 import { formatDate } from "../lib/format"
 import { Button } from "@workspace/ui/components/button"
@@ -17,7 +18,6 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Badge } from "@workspace/ui/components/badge"
-import { ArrowLeft } from "lucide-react"
 import type { Event } from "../lib/types"
 
 function GrantModeRenderer(props: ICellRendererParams<Event>) {
@@ -94,9 +94,10 @@ function CreateEventForm() {
   )
 }
 
-export default function AdminEventsPage() {
+export default function EventsManagePage() {
   const { user } = useAuth()
   const { events, setCurrentEventId } = useEvent()
+  const updateEvent = useUpdateEvent()
   const navigate = useNavigate()
 
   const ActionsRenderer = useMemo(() => {
@@ -112,7 +113,7 @@ export default function AdminEventsPage() {
             className="h-7"
             onClick={() => {
               setCurrentEventId(ev.id)
-              navigate("/")
+              navigate("/events")
             }}
           >
             Open
@@ -136,12 +137,19 @@ export default function AdminEventsPage() {
 
   const columnDefs = useMemo<ColDef<Event>[]>(() => {
     return [
-      { headerName: "Name", field: "name", flex: 2, minWidth: 160 },
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 2,
+        minWidth: 160,
+        editable: true,
+      },
       {
         headerName: "Description",
         field: "description",
         flex: 3,
         minWidth: 200,
+        editable: true,
         valueGetter: (params: ValueGetterParams<Event>) =>
           params.data?.description ?? "",
       },
@@ -150,6 +158,10 @@ export default function AdminEventsPage() {
         field: "grantMode",
         width: 130,
         cellRenderer: GrantModeRenderer,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: { values: [true, false] },
+        valueFormatter: (params) => (params.value ? "Yes" : "No"),
       },
       {
         headerName: "Created",
@@ -161,8 +173,10 @@ export default function AdminEventsPage() {
         headerName: "Actions",
         colId: "actions",
         width: 150,
+        suppressSizeToFit: true,
         sortable: false,
         filter: false,
+        editable: false,
         cellRenderer: ActionsRenderer,
       },
     ]
@@ -175,6 +189,23 @@ export default function AdminEventsPage() {
       filter: true,
     }),
     []
+  )
+
+  const onCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<Event>) => {
+      if (!event.data) return
+      const field = event.colDef.field
+      if (event.oldValue === event.newValue) return
+      const id = event.data.id
+      if (field === "name") {
+        updateEvent.mutate({ id, name: event.data.name })
+      } else if (field === "description") {
+        updateEvent.mutate({ id, description: event.data.description ?? "" })
+      } else if (field === "grantMode") {
+        updateEvent.mutate({ id, grantMode: event.data.grantMode })
+      }
+    },
+    [updateEvent]
   )
 
   if (!user?.isSuper) {
@@ -193,15 +224,7 @@ export default function AdminEventsPage() {
     <AppShell>
       <div className="flex h-full min-h-0 flex-col">
         <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 py-6">
-          <Link
-            to="/admin"
-            className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back to admin
-          </Link>
-
-          <h1 className="mb-6 text-xl font-bold">Events</h1>
+          <h1 className="mb-6 text-xl font-bold">Manage events</h1>
 
           <div className="mb-6">
             <CreateEventForm />
@@ -220,6 +243,8 @@ export default function AdminEventsPage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               getRowId={(params) => params.data.id}
+              onCellValueChanged={onCellValueChanged}
+              stopEditingWhenCellsLoseFocus={true}
               domLayout="normal"
               animateRows={false}
               noRowsOverlayComponent={() => (

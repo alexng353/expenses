@@ -1,12 +1,15 @@
-import { useMemo, useState } from "react"
-import { Link } from "react-router"
+import { useCallback, useMemo, useState } from "react"
 import { AgGridReact } from "ag-grid-react"
-import type { ColDef, ICellRendererParams } from "ag-grid-community"
-import { AppShell } from "../components/layout/app-shell"
-import { useAuth } from "../hooks/use-auth"
+import type {
+  ColDef,
+  ICellRendererParams,
+  CellValueChangedEvent,
+} from "ag-grid-community"
+import { AdminShell } from "../components/layout/admin-shell"
 import {
   useAllUsers,
   useCreateUser,
+  useUpdateUser,
   useArchiveUser,
   useUnarchiveUser,
   type AdminUser,
@@ -17,12 +20,11 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Badge } from "@workspace/ui/components/badge"
-import { ArrowLeft } from "lucide-react"
 
 function SuperRenderer(props: ICellRendererParams<AdminUser>) {
   if (!props.data) return null
   return props.data.isSuper ? (
-    <Badge variant="secondary">Super</Badge>
+    <Badge variant="secondary">Yes</Badge>
   ) : (
     <span className="text-muted-foreground">No</span>
   )
@@ -117,8 +119,8 @@ function CreateUserForm() {
 }
 
 export default function AdminUsersPage() {
-  const { user } = useAuth()
   const { data: users = [], isLoading } = useAllUsers()
+  const updateUser = useUpdateUser()
   const archiveUser = useArchiveUser()
   const unarchiveUser = useUnarchiveUser()
 
@@ -156,13 +158,23 @@ export default function AdminUsersPage() {
 
   const columnDefs = useMemo<ColDef<AdminUser>[]>(() => {
     return [
-      { headerName: "Name", field: "name", flex: 2, minWidth: 160 },
+      {
+        headerName: "Name",
+        field: "name",
+        flex: 2,
+        minWidth: 160,
+        editable: true,
+      },
       { headerName: "Email", field: "email", flex: 2, minWidth: 200 },
       {
         headerName: "Super",
         field: "isSuper",
         width: 110,
         cellRenderer: SuperRenderer,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: { values: [true, false] },
+        valueFormatter: (params) => (params.value ? "Yes" : "No"),
       },
       {
         headerName: "Archived",
@@ -174,8 +186,10 @@ export default function AdminUsersPage() {
         headerName: "Actions",
         colId: "actions",
         width: 140,
+        suppressSizeToFit: true,
         sortable: false,
         filter: false,
+        editable: false,
         cellRenderer: ActionsRenderer,
       },
     ]
@@ -190,30 +204,24 @@ export default function AdminUsersPage() {
     []
   )
 
-  if (!user?.isSuper) {
-    return (
-      <AppShell>
-        <div className="flex h-[60vh] items-center justify-center">
-          <p className="text-muted-foreground">
-            You are not authorized to view this page.
-          </p>
-        </div>
-      </AppShell>
-    )
-  }
+  const onCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<AdminUser>) => {
+      if (!event.data) return
+      const field = event.colDef.field
+      if (event.oldValue === event.newValue) return
+      if (field === "name") {
+        updateUser.mutate({ id: event.data.id, name: event.data.name })
+      } else if (field === "isSuper") {
+        updateUser.mutate({ id: event.data.id, isSuper: event.data.isSuper })
+      }
+    },
+    [updateUser]
+  )
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="flex h-full min-h-0 flex-col">
         <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 py-6">
-          <Link
-            to="/admin"
-            className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back to admin
-          </Link>
-
           <h1 className="mb-6 text-xl font-bold">Users</h1>
 
           <div className="mb-6">
@@ -235,6 +243,8 @@ export default function AdminUsersPage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               getRowId={(params) => params.data.id}
+              onCellValueChanged={onCellValueChanged}
+              stopEditingWhenCellsLoseFocus={true}
               domLayout="normal"
               animateRows={false}
               noRowsOverlayComponent={() => (
@@ -244,6 +254,6 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
-    </AppShell>
+    </AdminShell>
   )
 }
