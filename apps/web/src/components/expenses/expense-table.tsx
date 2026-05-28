@@ -10,6 +10,7 @@ import {
   type CellValueChangedEvent,
   type SelectionChangedEvent,
   type CellContextMenuEvent,
+  type CellDoubleClickedEvent,
   type ICellRendererParams,
   type GridReadyEvent,
 } from "ag-grid-community"
@@ -530,6 +531,16 @@ export function ExpenseTable({
     []
   )
 
+  // Double-click receipts cell opens the receipt view/upload dialog
+  const onCellDoubleClicked = useCallback(
+    (event: CellDoubleClickedEvent<Expense>) => {
+      if (event.colDef.field === "receiptCount" && event.data) {
+        onOpenReceipts(event.data)
+      }
+    },
+    [onOpenReceipts]
+  )
+
   // Close context menu
   useEffect(() => {
     if (!contextMenuPos) return
@@ -739,8 +750,10 @@ export function ExpenseTable({
           onColumnMoved={saveColumnState}
           onSortChanged={saveColumnState}
           onCellContextMenu={onCellContextMenu}
+          onCellDoubleClicked={onCellDoubleClicked}
           stopEditingWhenCellsLoseFocus={true}
           suppressContextMenu={true}
+          preventDefaultOnContextMenu={true}
           domLayout="autoHeight"
           animateRows={false}
           noRowsOverlayComponent={() => (
