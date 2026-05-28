@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
-import { AgGridReact } from "ag-grid-react"
+import { AgGridReact, useGridFilter } from "ag-grid-react"
+import type { CustomFilterProps } from "ag-grid-react"
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -14,6 +15,12 @@ import {
 } from "ag-grid-community"
 import { useMarqueeSelect } from "../../hooks/use-table-select"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@workspace/ui/components/popover"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import type {
   Expense,
   EventMember,
@@ -62,31 +69,6 @@ interface ExpenseTableProps {
 
 // --- Custom cell renderers ---
 
-function StatusCellRenderer(props: ICellRendererParams<Expense>) {
-  if (!props.data) return null
-  return <StatusBadge status={props.data.status} />
-}
-
-function PaidByCellRenderer(
-  props: ICellRendererParams<Expense> & { members: EventMember[] }
-) {
-  if (!props.data) return null
-  const member = props.members.find((m) => m.userId === props.data!.paidById)
-  if (!member)
-    return <span className="text-muted-foreground italic">Unassigned</span>
-  return <PaidByBadge name={member.userName} userId={member.userId} />
-}
-
-function BucketCellRenderer(
-  props: ICellRendererParams<Expense> & { buckets: EventBucket[] }
-) {
-  if (!props.data) return null
-  const bucket = props.buckets.find((b) => b.id === props.data!.bucketId)
-  if (!bucket)
-    return <span className="text-muted-foreground italic">No bucket</span>
-  return <>{bucket.name}</>
-}
-
 function ReceiptCellRenderer(props: ICellRendererParams<Expense>) {
   if (!props.data) return null
   return (
@@ -111,6 +93,115 @@ function DateCellRenderer(props: ICellRendererParams<Expense>) {
   const d = formatDate(props.data.date)
   if (!d) return <span className="text-muted-foreground italic">No date</span>
   return <>{d}</>
+}
+
+const STATUS_VALUES: ExpenseStatus[] = [
+  "outstanding",
+  "awaiting_approval",
+  "approved",
+  "paid",
+  "reimbursed",
+]
+
+// --- Click-to-open dropdown cell (status / paid by / bucket) ---
+
+interface DropdownOption {
+  value: string
+  label: React.ReactNode
+}
+
+function DropdownCell({
+  display,
+  options,
+  onSelect,
+}: {
+  display: React.ReactNode
+  options: DropdownOption[]
+  onSelect: (value: string) => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        className="flex h-full w-full items-center text-left outline-none"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {display}
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-auto min-w-[160px] gap-0 p-1"
+      >
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            onClick={() => onSelect(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// --- Checkbox set filter (AG Grid Community custom filter) ---
+
+function SetFilter(
+  props: CustomFilterProps<Expense, unknown, string[]> & {
+    options: { value: string; label: string }[]
+    getRowValue: (e: Expense) => string
+  }
+) {
+  const { model, onModelChange, options, getRowValue } = props
+
+  const doesFilterPass = useCallback(
+    (params: { node: { data?: Expense } }) => {
+      if (!model || model.length === 0) return true
+      const data = params.node.data
+      if (!data) return true
+      return model.includes(getRowValue(data))
+    },
+    [model, getRowValue]
+  )
+
+  useGridFilter({ doesFilterPass })
+
+  const selected = model ?? []
+  const toggle = (value: string) => {
+    const next = selected.includes(value)
+      ? selected.filter((v) => v !== value)
+      : [...selected, value]
+    onModelChange(next.length > 0 ? next : null)
+  }
+
+  return (
+    <div className="w-48 p-2">
+      <div className="max-h-[min(300px,calc(100vh-200px))] space-y-1 overflow-y-auto pr-1">
+        {options.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent"
+          >
+            <Checkbox
+              checked={selected.includes(opt.value)}
+              onCheckedChange={() => toggle(opt.value)}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+      {selected.length > 0 && (
+        <button
+          className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
+          onClick={() => onModelChange(null)}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  )
 }
 
 // --- Main component ---
@@ -141,51 +232,109 @@ export function ExpenseTable({
   const updateExpense = useUpdateExpense()
   const deleteExpense = useDeleteExpense()
 
-  // --- Build stable cell renderer components that close over members/buckets ---
+  // Stable ref to expenses for handlers that shouldn't re-create on data change
+  const expensesRef = useRef(expenses)
+  useEffect(() => {
+    expensesRef.current = expenses
+  }, [expenses])
+
+  // Direct dropdown edit (status / paid by / bucket) — bypasses AG Grid editing
+  const dropdownEdit = useCallback(
+    (expenseId: string, field: string, value: string | null) => {
+      const expense = expensesRef.current.find((e) => e.id === expenseId)
+      if (!expense) return
+      const oldValue = (expense as unknown as Record<string, unknown>)[field]
+      if (oldValue === value) return
+      undoStack.push(expense, field, oldValue, value)
+      updateExpense.mutate({
+        id: expenseId,
+        [field]: value,
+      } as Parameters<typeof updateExpense.mutate>[0])
+    },
+    [updateExpense, undoStack]
+  )
+
+  // --- Dropdown cell renderers (click to open Popover) ---
+  const StatusRenderer = useMemo(() => {
+    return function StatusRendererInner(props: ICellRendererParams<Expense>) {
+      if (!props.data) return null
+      const id = props.data.id
+      return (
+        <DropdownCell
+          display={<StatusBadge status={props.data.status} />}
+          options={STATUS_VALUES.map((s) => ({
+            value: s,
+            label: <StatusBadge status={s} />,
+          }))}
+          onSelect={(v) => dropdownEdit(id, "status", v)}
+        />
+      )
+    }
+  }, [dropdownEdit])
+
   const PaidByRenderer = useMemo(() => {
     return function PaidByRendererInner(props: ICellRendererParams<Expense>) {
-      return <PaidByCellRenderer {...props} members={members} />
+      if (!props.data) return null
+      const id = props.data.id
+      const member = members.find((m) => m.userId === props.data!.paidById)
+      return (
+        <DropdownCell
+          display={
+            member ? (
+              <PaidByBadge name={member.userName} userId={member.userId} />
+            ) : (
+              <span className="text-muted-foreground italic">Unassigned</span>
+            )
+          }
+          options={[
+            {
+              value: "",
+              label: (
+                <span className="text-muted-foreground italic">Unassigned</span>
+              ),
+            },
+            ...members.map((m) => ({
+              value: m.userId,
+              label: <PaidByBadge name={m.userName} userId={m.userId} />,
+            })),
+          ]}
+          onSelect={(v) => dropdownEdit(id, "paidById", v || null)}
+        />
+      )
     }
-  }, [members])
+  }, [members, dropdownEdit])
 
   const BucketRenderer = useMemo(() => {
     return function BucketRendererInner(props: ICellRendererParams<Expense>) {
-      return <BucketCellRenderer {...props} buckets={buckets} />
+      if (!props.data) return null
+      const id = props.data.id
+      const bucket = buckets.find((b) => b.id === props.data!.bucketId)
+      return (
+        <DropdownCell
+          display={
+            bucket ? (
+              <>{bucket.name}</>
+            ) : (
+              <span className="text-muted-foreground italic">No bucket</span>
+            )
+          }
+          options={[
+            {
+              value: "",
+              label: (
+                <span className="text-muted-foreground italic">No bucket</span>
+              ),
+            },
+            ...buckets.map((b) => ({ value: b.id, label: b.name })),
+          ]}
+          onSelect={(v) => dropdownEdit(id, "bucketId", v || null)}
+        />
+      )
     }
-  }, [buckets])
-
-  // Status value labels for select editor
-  const statusOptions = useMemo(
-    () => [
-      "outstanding",
-      "awaiting_approval",
-      "approved",
-      "paid",
-      "reimbursed",
-    ],
-    []
-  )
-
-  const paidByOptions = useMemo(
-    () => ["", ...members.map((m) => m.userId)],
-    [members]
-  )
-
-  const bucketOptions = useMemo(
-    () => ["", ...buckets.map((b) => b.id)],
-    [buckets]
-  )
+  }, [buckets, dropdownEdit])
 
   // --- Column definitions ---
   const columnDefs = useMemo<ColDef<Expense>[]>(() => {
-    const paidByValueMap = new Map<string, string>()
-    paidByValueMap.set("", "Unassigned")
-    for (const m of members) paidByValueMap.set(m.userId, m.userName)
-
-    const bucketValueMap = new Map<string, string>()
-    bucketValueMap.set("", "No bucket")
-    for (const b of buckets) bucketValueMap.set(b.id, b.name)
-
     return [
       {
         headerName: "",
@@ -238,48 +387,46 @@ export function ExpenseTable({
         headerName: "Status",
         field: "status",
         width: 160,
-        cellRenderer: StatusCellRenderer,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: {
-          values: statusOptions,
+        cellRenderer: StatusRenderer,
+        editable: false,
+        filter: SetFilter,
+        filterParams: {
+          options: STATUS_VALUES.map((s) => ({
+            value: s,
+            label: statusLabel(s),
+          })),
+          getRowValue: (e: Expense) => e.status,
         },
-        valueFormatter: (params) => statusLabel(params.value ?? ""),
-        filter: "agTextColumnFilter",
-        filterValueGetter: (params) =>
-          statusLabel(params.data?.status ?? ""),
       },
       {
         headerName: "Paid By",
         field: "paidById",
         width: 150,
         cellRenderer: PaidByRenderer,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: {
-          values: paidByOptions,
+        editable: false,
+        filter: SetFilter,
+        filterParams: {
+          options: [
+            { value: "", label: "Unassigned" },
+            ...members.map((m) => ({ value: m.userId, label: m.userName })),
+          ],
+          getRowValue: (e: Expense) => e.paidById ?? "",
         },
-        valueFormatter: (params) =>
-          paidByValueMap.get(params.value ?? "") ?? "Unassigned",
-        filter: "agTextColumnFilter",
-        filterValueGetter: (params) =>
-          paidByValueMap.get(params.data?.paidById ?? "") ?? "Unassigned",
       },
       {
         headerName: "Bucket",
         field: "bucketId",
         width: 140,
         cellRenderer: BucketRenderer,
-        editable: true,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: {
-          values: bucketOptions,
+        editable: false,
+        filter: SetFilter,
+        filterParams: {
+          options: [
+            { value: "", label: "No bucket" },
+            ...buckets.map((b) => ({ value: b.id, label: b.name })),
+          ],
+          getRowValue: (e: Expense) => e.bucketId ?? "",
         },
-        valueFormatter: (params) =>
-          bucketValueMap.get(params.value ?? "") ?? "No bucket",
-        filter: "agTextColumnFilter",
-        filterValueGetter: (params) =>
-          bucketValueMap.get(params.data?.bucketId ?? "") ?? "No bucket",
       },
       {
         headerName: "Notes",
@@ -305,15 +452,7 @@ export function ExpenseTable({
         filter: false,
       },
     ]
-  }, [
-    members,
-    buckets,
-    statusOptions,
-    paidByOptions,
-    bucketOptions,
-    PaidByRenderer,
-    BucketRenderer,
-  ])
+  }, [members, buckets, StatusRenderer, PaidByRenderer, BucketRenderer])
 
   const defaultColDef = useMemo<ColDef<Expense>>(
     () => ({
@@ -352,11 +491,6 @@ export function ExpenseTable({
       // ignore
     }
   }, [gridApi])
-
-  const expensesRef = useRef(expenses)
-  useEffect(() => {
-    expensesRef.current = expenses
-  }, [expenses])
 
   const onCellValueChanged = useCallback(
     (event: CellValueChangedEvent<Expense>) => {
