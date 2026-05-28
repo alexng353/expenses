@@ -1,19 +1,16 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { AppShell } from "../components/layout/app-shell";
 import { ExpenseTable } from "../components/expenses/expense-table";
 import { ExpenseKanban } from "../components/expenses/expense-kanban";
 import { ExpenseModal } from "../components/expenses/expense-modal";
-import {
-  ExpenseFilters,
-  buildFilterFn,
-  DEFAULT_FILTERS,
-  type FilterState,
-} from "../components/expenses/expense-filters";
 import { SummaryPanel } from "../components/summary/summary-panel";
 import { ReceiptDialog } from "../components/expenses/receipt-dialog";
+import { UndoToast } from "../components/shared/undo-toast";
+import { useAuth } from "../hooks/use-auth";
 import { useEvent } from "../hooks/use-event";
 import { useExpenses } from "../hooks/use-expenses";
 import { useExpenseWebSocket } from "../hooks/use-websocket";
+import { useUndoStack } from "../hooks/use-undo";
 import { ExportButton } from "../components/exports/export-button";
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -26,20 +23,19 @@ import type { Expense } from "../lib/types";
 import { Plus, Table2, LayoutGrid } from "lucide-react";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { currentEvent, members, buckets, grantCategories, isLoading } =
     useEvent();
   const { data: expenses = [], isLoading: expensesLoading } = useExpenses();
   useExpenseWebSocket();
+  const undoStack = useUndoStack();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalExpense, setModalExpense] = useState<Expense | null>(null);
   const [receiptExpense, setReceiptExpense] = useState<Expense | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   const grantMode = currentEvent?.grantMode ?? false;
-
-  const filterFn = useMemo(() => buildFilterFn(filters), [filters]);
 
   const handleOpenModal = useCallback((expense?: Expense) => {
     setModalExpense(expense ?? null);
@@ -89,15 +85,6 @@ export default function DashboardPage() {
         <div className="flex gap-6">
           {/* Left: main content */}
           <div className="min-w-0 flex-1">
-            {/* Filters */}
-            <div className="mb-4">
-              <ExpenseFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                grantMode={grantMode}
-              />
-            </div>
-
             {/* View toggle: Table / Kanban */}
             <Tabs defaultValue="table">
               <TabsList>
@@ -126,7 +113,7 @@ export default function DashboardPage() {
                     grantMode={grantMode}
                     onOpenModal={handleOpenModal}
                     onOpenReceipts={handleOpenReceipts}
-                    filterFn={filterFn}
+                    undoStack={undoStack}
                   />
                 )}
               </TabsContent>
@@ -143,7 +130,6 @@ export default function DashboardPage() {
                     expenses={expenses}
                     members={members}
                     buckets={buckets}
-                    filterFn={filterFn}
                     onOpenModal={handleOpenModal}
                     onOpenReceipts={handleOpenReceipts}
                   />
@@ -168,6 +154,7 @@ export default function DashboardPage() {
         buckets={buckets}
         grantCategories={grantCategories}
         grantMode={grantMode}
+        currentUserId={user?.id}
       />
 
       <ReceiptDialog
@@ -175,6 +162,17 @@ export default function DashboardPage() {
         onOpenChange={setReceiptDialogOpen}
         expense={receiptExpense}
       />
+
+      {/* Undo toast */}
+      {undoStack.toast && (
+        <UndoToast
+          expenseName={undoStack.toast.expenseName}
+          field={undoStack.toast.field}
+          onUndo={undoStack.undo}
+          onDismiss={undoStack.dismissToast}
+          stackSize={undoStack.stackSize}
+        />
+      )}
     </AppShell>
   );
 }

@@ -4,58 +4,84 @@ import { db } from "../../db";
 import { eventMembers } from "../../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
+async function resolveUser(cookie: any) {
+  const token = cookie.session?.value as string | undefined;
+  if (!token) return null;
+  const result = await validateSession(token);
+  if (!result) return null;
+  if (result.user.archived) return null;
+  return result.user;
+}
+
 export const authPlugin = new Elysia({ name: "auth" }).derive(
   { as: "scoped" },
   async ({ cookie }) => {
-    const token = cookie.session?.value as string | undefined;
-    if (!token) return { user: null };
-
-    const result = await validateSession(token);
-    if (!result) return { user: null };
-    if (result.user.archived) return { user: null };
-
-    return { user: result.user };
+    return { user: await resolveUser(cookie) };
   }
 );
 
-export const requireAuth = new Elysia({ name: "require-auth" })
-  .use(authPlugin)
-  .onBeforeHandle({ as: "scoped" }, (ctx: any) => {
-    if (!ctx.user) {
-      ctx.set.status = 401;
-      return { error: "Authentication required" };
+export const requireAuth = new Elysia({ name: "require-auth" }).derive(
+  { as: "scoped" },
+  async ({ cookie, set }) => {
+    const user = await resolveUser(cookie);
+    if (!user) {
+      set.status = 401;
+      return { user: null, _authFailed: true as const };
     }
-  });
+    return { user, _authFailed: false as const };
+  }
+).onBeforeHandle({ as: "scoped" }, (ctx: any) => {
+  if (ctx._authFailed) {
+    return { error: "Authentication required" };
+  }
+});
 
-export const requireSuper = new Elysia({ name: "require-super" })
-  .use(requireAuth)
-  .onBeforeHandle({ as: "scoped" }, (ctx: any) => {
-    if (!ctx.user?.isSuper) {
-      ctx.set.status = 403;
-      return { error: "Platform admin access required" };
+export const requireSuper = new Elysia({ name: "require-super" }).derive(
+  { as: "scoped" },
+  async ({ cookie, set }) => {
+    const user = await resolveUser(cookie);
+    if (!user) {
+      set.status = 401;
+      return { user: null };
     }
-  });
+    if (!user.isSuper) {
+      set.status = 403;
+      return { user };
+    }
+    return { user };
+  }
+).onBeforeHandle({ as: "scoped" }, (ctx: any) => {
+  if (!ctx.user) return { error: "Authentication required" };
+  if (!ctx.user.isSuper) return { error: "Platform admin access required" };
+});
 
 export function requireEventRole(
   ...roles: ("readonly" | "write" | "edit_others" | "super")[]
 ) {
   return new Elysia({ name: `require-event-role-${roles.join("-")}` })
-    .use(requireAuth)
-    .derive({ as: "scoped" }, async (ctx: any) => {
-      const eventId = ctx.params?.eventId;
-      if (!eventId) {
-        ctx.set.status = 400;
-        return { error: "Missing eventId", membership: null };
+    .derive({ as: "scoped" }, async ({ cookie, set, params }: any) => {
+      const user = await resolveUser(cookie);
+      if (!user) {
+        set.status = 401;
+        return { user: null, membership: null, _authFailed: true as const };
       }
 
-      if (ctx.user!.isSuper) {
+      const eventId = params?.eventId;
+      if (!eventId) {
+        set.status = 400;
+        return { user, membership: null, _authFailed: true as const };
+      }
+
+      if (user.isSuper) {
         return {
+          user,
           membership: {
             role: "super" as const,
             canApprove: true,
             eventId,
-            userId: ctx.user!.id,
+            userId: user.id,
           },
+          _authFailed: false as const,
         };
       }
 
@@ -65,17 +91,23 @@ export function requireEventRole(
         .where(
           and(
             eq(eventMembers.eventId, eventId),
-            eq(eventMembers.userId, ctx.user!.id),
+            eq(eventMembers.userId, user.id),
             isNull(eventMembers.deletedAt)
           )
         );
 
       if (!member || !roles.includes(member.role as any)) {
-        ctx.set.status = 403;
-        return { error: "Insufficient permissions for this event", membership: null };
+        set.status = 403;
+        return { user, membership: null, _authFailed: true as const };
       }
 
-      return { membership: member };
+      return { user, membership: member, _authFailed: false as const };
+    })
+    .onBeforeHandle({ as: "scoped" }, (ctx: any) => {
+      if (ctx._authFailed) {
+        if (!ctx.user) return { error: "Authentication required" };
+        if (!ctx.membership) return { error: "Insufficient permissions for this event" };
+      }
     });
 }
 

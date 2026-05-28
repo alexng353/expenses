@@ -28,7 +28,7 @@ async function seed() {
       name: "Alexander Ng",
       emailVerified: true,
       isSuper: true,
-      passwordHash: "placeholder-will-be-hashed-in-auth-plan",
+      passwordHash: "$2b$12$JxzebUGg7dRtzB6J/JQkMuwq3wBO21vNYd.UzePFculytoW7dAv/.", // password123
     })
     .returning();
 

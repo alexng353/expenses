@@ -5,6 +5,11 @@ import { StatusBadge } from "./status-badge";
 import { PaidByBadge } from "./paid-by-badge";
 import { Checkbox } from "@workspace/ui/components/checkbox";
 import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@workspace/ui/components/popover";
+import {
   ArrowUpDown,
   Paperclip,
 } from "lucide-react";
@@ -69,7 +74,7 @@ export function getExpenseColumns(options: ColumnOptions) {
             <input
               type="date"
               defaultValue={value ?? ""}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
+              className="bg-transparent w-full text-sm outline-none ring-1 ring-ring rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 box-content"
               autoFocus
               onBlur={(e) => {
                 onCellEdit(
@@ -112,6 +117,8 @@ export function getExpenseColumns(options: ColumnOptions) {
         <SortableHeader column={column} label="Name" />
       ),
       size: 220,
+      enableColumnFilter: true,
+      filterFn: "includesString",
       cell: ({ row, column }) => {
         const isEditing =
           editingCell?.rowId === row.id &&
@@ -122,7 +129,7 @@ export function getExpenseColumns(options: ColumnOptions) {
             <input
               type="text"
               defaultValue={row.original.name}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
+              className="bg-transparent w-full text-sm outline-none ring-1 ring-ring rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 box-content"
               autoFocus
               onBlur={(e) => {
                 if (e.target.value.trim()) {
@@ -225,44 +232,39 @@ export function getExpenseColumns(options: ColumnOptions) {
         <SortableHeader column={column} label="Status" />
       ),
       size: 160,
+      enableColumnFilter: true,
+      filterFn: (row, _columnId, filterValue: string[]) => {
+        if (!filterValue || filterValue.length === 0) return true;
+        return filterValue.includes(row.original.status);
+      },
       cell: ({ row, column }) => {
         const isEditing =
           editingCell?.rowId === row.id &&
           editingCell?.columnId === column.id;
 
-        if (isEditing) {
-          return (
-            <select
-              defaultValue={row.original.status}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
-              autoFocus
-              onChange={(e) => {
-                onCellEdit(row.original.id, "status", e.target.value);
-                setEditingCell(null);
-              }}
-              onBlur={() => setEditingCell(null)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setEditingCell(null);
-              }}
-            >
-              <option value="outstanding">Outstanding</option>
-              <option value="awaiting_approval">Awaiting Approval</option>
-              <option value="approved">Approved</option>
-              <option value="paid">Paid</option>
-              <option value="reimbursed">Reimbursed</option>
-            </select>
-          );
-        }
-
         return (
-          <span
-            className="cursor-pointer"
-            onClick={() =>
-              setEditingCell({ rowId: row.id, columnId: column.id })
-            }
-          >
-            <StatusBadge status={row.original.status} />
-          </span>
+          <Popover>
+            <PopoverTrigger
+              className="cursor-pointer outline-none"
+              onClick={() => console.log("STATUS TRIGGER CLICKED", row.original.id)}
+            >
+              <StatusBadge status={row.original.status} />
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto min-w-[160px] p-1 gap-0">
+              {(["outstanding", "awaiting_approval", "approved", "paid", "reimbursed"] as const).map((s) => (
+                <button
+                  key={s}
+                  className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => {
+                    console.log("STATUS ITEM CLICKED", s);
+                    onCellEdit(row.original.id, "status", s);
+                  }}
+                >
+                  <StatusBadge status={s} />
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         );
       },
     }),
@@ -272,55 +274,45 @@ export function getExpenseColumns(options: ColumnOptions) {
         <SortableHeader column={column} label="Paid By" />
       ),
       size: 150,
+      enableColumnFilter: true,
+      filterFn: (row, _columnId, filterValue: string[]) => {
+        if (!filterValue || filterValue.length === 0) return true;
+        return filterValue.includes(row.original.paidById ?? "");
+      },
       cell: ({ row, column }) => {
         const isEditing =
           editingCell?.rowId === row.id &&
           editingCell?.columnId === column.id;
 
-        if (isEditing) {
-          return (
-            <select
-              defaultValue={row.original.paidById ?? ""}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
-              autoFocus
-              onChange={(e) => {
-                onCellEdit(
-                  row.original.id,
-                  "paidById",
-                  e.target.value || null
-                );
-                setEditingCell(null);
-              }}
-              onBlur={() => setEditingCell(null)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setEditingCell(null);
-              }}
-            >
-              <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.userName}
-                </option>
-              ))}
-            </select>
-          );
-        }
-
         const member = members.find((m) => m.userId === row.original.paidById);
 
         return (
-          <span
-            className="cursor-pointer"
-            onClick={() =>
-              setEditingCell({ rowId: row.id, columnId: column.id })
-            }
-          >
-            {member ? (
-              <PaidByBadge name={member.userName} userId={member.userId} />
-            ) : (
-              <span className="text-muted-foreground italic">Unassigned</span>
-            )}
-          </span>
+          <Popover>
+            <PopoverTrigger className="cursor-pointer outline-none">
+              {member ? (
+                <PaidByBadge name={member.userName} userId={member.userId} />
+              ) : (
+                <span className="text-muted-foreground italic">Unassigned</span>
+              )}
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto min-w-[160px] p-1 gap-0">
+              <button
+                className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                onClick={() => onCellEdit(row.original.id, "paidById", null)}
+              >
+                <span className="text-muted-foreground italic">Unassigned</span>
+              </button>
+              {members.map((m) => (
+                <button
+                  key={m.userId}
+                  className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => onCellEdit(row.original.id, "paidById", m.userId)}
+                >
+                  <PaidByBadge name={m.userName} userId={m.userId} />
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         );
       },
     }),
@@ -330,53 +322,43 @@ export function getExpenseColumns(options: ColumnOptions) {
         <SortableHeader column={column} label="Bucket" />
       ),
       size: 140,
+      enableColumnFilter: true,
+      filterFn: (row, _columnId, filterValue: string[]) => {
+        if (!filterValue || filterValue.length === 0) return true;
+        return filterValue.includes(row.original.bucketId ?? "");
+      },
       cell: ({ row, column }) => {
         const isEditing =
           editingCell?.rowId === row.id &&
           editingCell?.columnId === column.id;
 
-        if (isEditing) {
-          return (
-            <select
-              defaultValue={row.original.bucketId ?? ""}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
-              autoFocus
-              onChange={(e) => {
-                onCellEdit(
-                  row.original.id,
-                  "bucketId",
-                  e.target.value || null
-                );
-                setEditingCell(null);
-              }}
-              onBlur={() => setEditingCell(null)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setEditingCell(null);
-              }}
-            >
-              <option value="">No bucket</option>
-              {buckets.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          );
-        }
-
         const bucket = buckets.find((b) => b.id === row.original.bucketId);
 
         return (
-          <span
-            className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted"
-            onClick={() =>
-              setEditingCell({ rowId: row.id, columnId: column.id })
-            }
-          >
-            {bucket?.name ?? (
-              <span className="text-muted-foreground italic">No bucket</span>
-            )}
-          </span>
+          <Popover>
+            <PopoverTrigger className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted outline-none">
+              {bucket?.name ?? (
+                <span className="text-muted-foreground italic">No bucket</span>
+              )}
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto min-w-[140px] p-1 gap-0">
+              <button
+                className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                onClick={() => onCellEdit(row.original.id, "bucketId", null)}
+              >
+                <span className="text-muted-foreground italic">No bucket</span>
+              </button>
+              {buckets.map((b) => (
+                <button
+                  key={b.id}
+                  className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => onCellEdit(row.original.id, "bucketId", b.id)}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         );
       },
     }),
@@ -385,7 +367,10 @@ export function getExpenseColumns(options: ColumnOptions) {
       header: ({ column }) => (
         <SortableHeader column={column} label="Notes" />
       ),
-      size: 180,
+      size: 250,
+      maxSize: 350,
+      enableColumnFilter: true,
+      filterFn: "includesString",
       cell: ({ row, column }) => {
         const isEditing =
           editingCell?.rowId === row.id &&
@@ -393,10 +378,10 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         if (isEditing) {
           return (
-            <input
-              type="text"
+            <textarea
               defaultValue={row.original.notes ?? ""}
-              className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
+              className="bg-transparent w-full text-sm outline-none ring-1 ring-ring rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 box-content resize-none"
+              rows={2}
               autoFocus
               onBlur={(e) => {
                 onCellEdit(
@@ -407,7 +392,8 @@ export function getExpenseColumns(options: ColumnOptions) {
                 setEditingCell(null);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
                   onCellEdit(
                     row.original.id,
                     "notes",
@@ -423,11 +409,11 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         return (
           <span
-            className="cursor-pointer truncate rounded px-1.5 py-0.5 hover:bg-muted"
+            className="block cursor-pointer whitespace-pre-wrap break-words rounded px-1.5 py-0.5 text-sm leading-snug hover:bg-muted"
+            style={{ maxWidth: 350 }}
             onClick={() =>
               setEditingCell({ rowId: row.id, columnId: column.id })
             }
-            title={row.original.notes ?? undefined}
           >
             {row.original.notes ?? (
               <span className="text-muted-foreground italic">--</span>
@@ -441,6 +427,14 @@ export function getExpenseColumns(options: ColumnOptions) {
       header: "Receipts",
       size: 90,
       enableSorting: true,
+      enableColumnFilter: true,
+      filterFn: (row, _columnId, filterValue: string[]) => {
+        if (!filterValue || filterValue.length === 0) return true;
+        const has = row.original.receiptCount > 0;
+        if (filterValue.includes("has") && has) return true;
+        if (filterValue.includes("missing") && !has) return true;
+        return false;
+      },
       cell: ({ row }) => {
         const count = row.original.receiptCount;
         return (
@@ -471,7 +465,7 @@ export function getExpenseColumns(options: ColumnOptions) {
               <input
                 type="number"
                 defaultValue={row.original.motionNumber ?? ""}
-                className="bg-background border-input w-full rounded border px-1.5 py-0.5 text-sm outline-none focus:border-ring"
+                className="bg-transparent w-full text-sm outline-none ring-1 ring-ring rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 box-content"
                 autoFocus
                 onBlur={(e) => {
                   const val = e.target.value

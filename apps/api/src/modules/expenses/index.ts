@@ -5,7 +5,7 @@ import {
   expenseReceipts,
   users,
 } from "../../db/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, sql, inArray } from "drizzle-orm";
 import { requireEventRole } from "../auth/guards";
 import {
   logAudit,
@@ -54,7 +54,7 @@ export const expensesModule = new Elysia({
             .from(expenseReceipts)
             .where(
               and(
-                sql`${expenseReceipts.expenseId} = ANY(${expenseIds})`,
+                inArray(expenseReceipts.expenseId, expenseIds),
                 isNull(expenseReceipts.deletedAt)
               )
             )
@@ -78,7 +78,7 @@ export const expensesModule = new Elysia({
   .post(
     "/",
     async ({ body, params, user, membership, set }: any) => {
-      if (membership!.role === "readonly") {
+      if (membership?.role === "readonly") {
         set.status = 403;
         return { error: "Write access required" };
       }
@@ -165,15 +165,14 @@ export const expensesModule = new Elysia({
 
       // Ownership check for "write" role
       if (
-        membership!.role === "write" &&
-        old.createdById !== user!.id &&
-        !user!.isSuper
+        membership?.role === "write" &&
+        old.createdById !== user!.id
       ) {
         set.status = 403;
         return { error: "You can only edit your own expenses" };
       }
 
-      if (membership!.role === "readonly") {
+      if (membership?.role === "readonly") {
         set.status = 403;
         return { error: "Write access required" };
       }
@@ -249,7 +248,7 @@ export const expensesModule = new Elysia({
       }
 
       if (
-        membership!.role === "write" &&
+        membership?.role === "write" &&
         old.createdById !== user!.id &&
         !user!.isSuper
       ) {
@@ -257,7 +256,7 @@ export const expensesModule = new Elysia({
         return { error: "You can only delete your own expenses" };
       }
 
-      if (membership!.role === "readonly") {
+      if (membership?.role === "readonly") {
         set.status = 403;
         return { error: "Write access required" };
       }
@@ -293,8 +292,8 @@ export const expensesModule = new Elysia({
       // Check approver permission
       if (
         !user!.isSuper &&
-        membership!.role !== "super" &&
-        !membership!.canApprove
+        membership?.role !== "super" &&
+        !membership?.canApprove
       ) {
         set.status = 403;
         return { error: "Approval permission required" };
@@ -364,7 +363,7 @@ export const expensesModule = new Elysia({
   .post(
     "/:expenseId/receipts",
     async ({ params, body, user, membership, set }: any) => {
-      if (membership!.role === "readonly") {
+      if (membership?.role === "readonly") {
         set.status = 403;
         return { error: "Write access required" };
       }
@@ -440,7 +439,7 @@ export const expensesModule = new Elysia({
   .delete(
     "/:expenseId/receipts/:receiptId",
     async ({ params, user, membership, set }: any) => {
-      if (membership!.role === "readonly") {
+      if (membership?.role === "readonly") {
         set.status = 403;
         return { error: "Write access required" };
       }

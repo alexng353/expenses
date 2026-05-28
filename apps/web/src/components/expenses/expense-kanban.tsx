@@ -13,7 +13,6 @@ interface ExpenseKanbanProps {
   expenses: Expense[];
   members: EventMember[];
   buckets: EventBucket[];
-  filterFn?: (expense: Expense) => boolean;
   onOpenModal: (expense: Expense) => void;
   onOpenReceipts: (expense: Expense) => void;
 }
@@ -38,18 +37,12 @@ export function ExpenseKanban({
   expenses,
   members,
   buckets,
-  filterFn,
   onOpenModal,
   onOpenReceipts,
 }: ExpenseKanbanProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const updateExpense = useUpdateExpense();
   const dragExpenseRef = useRef<string | null>(null);
-
-  const filteredExpenses = useMemo(() => {
-    if (!filterFn) return expenses;
-    return expenses.filter(filterFn);
-  }, [expenses, filterFn]);
 
   const groups = useMemo(() => {
     const map = new Map<string, { label: string; expenses: Expense[] }>();
@@ -73,7 +66,7 @@ export function ExpenseKanban({
       }
     }
 
-    for (const expense of filteredExpenses) {
+    for (const expense of expenses) {
       let key: string;
       if (groupBy === "status") {
         key = expense.status;
@@ -96,7 +89,7 @@ export function ExpenseKanban({
     }
 
     return map;
-  }, [filteredExpenses, groupBy, buckets, members]);
+  }, [expenses, groupBy, buckets, members]);
 
   const handleDragStart = useCallback((expenseId: string) => {
     dragExpenseRef.current = expenseId;
