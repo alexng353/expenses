@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useAuth } from "../../hooks/use-auth";
 import { useEvent } from "../../hooks/use-event";
-import { Button } from "@workspace/ui/components/button";
+import { Button, buttonVariants } from "@workspace/ui/components/button";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -26,6 +26,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground text-sm">{user?.name}</span>
+          {user?.isSuper && (
+            <a href="/admin" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Admin
+            </a>
+          )}
           <Button variant="ghost" size="sm" onClick={logout}>
             Sign out
           </Button>

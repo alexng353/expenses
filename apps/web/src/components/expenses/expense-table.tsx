@@ -6,9 +6,9 @@ import {
   getFilteredRowModel,
   flexRender,
   type SortingState,
-  type RowSelectionState,
   type ColumnFiltersState,
 } from "@tanstack/react-table";
+import { useTableSelect } from "../../hooks/use-table-select";
 import {
   Table,
   TableBody,
@@ -41,6 +41,8 @@ interface ExpenseTableProps {
   onOpenModal: (expense?: Expense) => void;
   onOpenReceipts: (expense: Expense) => void;
   undoStack: ReturnType<typeof useUndoStack>;
+  /** Callback to expose selected expenses to the parent (for summary panel) */
+  onSelectionChange?: (selectedExpenses: Expense[]) => void;
 }
 
 export function ExpenseTable({
@@ -51,9 +53,9 @@ export function ExpenseTable({
   onOpenModal,
   onOpenReceipts,
   undoStack,
+  onSelectionChange,
 }: ExpenseTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
     columnId: string;
@@ -75,30 +77,30 @@ export function ExpenseTable({
     [updateExpense, expenses, undoStack]
   );
 
-  const columns = useMemo(
-    () =>
-      getExpenseColumns({
-        members,
-        buckets,
-        grantMode,
-        onCellEdit,
-        editingCell,
-        setEditingCell,
-      }),
-    [members, buckets, grantMode, onCellEdit, editingCell]
-  );
+  // We build the table first (without selection), then derive rowIds from it
+  // for the selection hook. We use a two-pass approach: memoize columns without
+  // selection first, build the table, get row IDs, then pass selection into columns.
 
   const table = useReactTable({
     data: expenses,
-    columns,
+    columns: useMemo(
+      () =>
+        getExpenseColumns({
+          members,
+          buckets,
+          grantMode,
+          onCellEdit,
+          editingCell,
+          setEditingCell,
+        }),
+      [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell]
+    ),
     state: {
       sorting,
-      rowSelection,
       columnSizing,
       columnFilters,
     },
     onSortingChange: setSorting,
-    onRowSelectionChange: setRowSelection,
     onColumnSizingChange: setColumnSizing,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -110,8 +112,50 @@ export function ExpenseTable({
   });
 
   const { rows } = table.getRowModel();
-  const selectedCount = Object.keys(rowSelection).length;
+  const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
+
+  // --- Custom selection hook ---
+  const {
+    selected,
+    selectAll,
+    clearSelection,
+    handleCheckboxClick,
+    getContainerProps,
+    getRowProps,
+    marqueeStyle,
+  } = useTableSelect(rowIds);
+
+  const selectedCount = selected.size;
   const activeFilterCount = columnFilters.length;
+
+  // Now build columns with selection info for the checkbox column
+  const columnsWithSelection = useMemo(
+    () =>
+      getExpenseColumns({
+        members,
+        buckets,
+        grantMode,
+        onCellEdit,
+        editingCell,
+        setEditingCell,
+        selected,
+        onSelectAll: selectAll,
+        onClearSelection: clearSelection,
+        onCheckboxClick: handleCheckboxClick,
+      }),
+    [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell, selected, selectAll, clearSelection, handleCheckboxClick]
+  );
+
+  // Update table columns to include selection
+  table.setOptions((prev) => ({ ...prev, columns: columnsWithSelection }));
+
+  // Notify parent of selection changes
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedExpenses = expenses.filter((e) => selected.has(e.id));
+      onSelectionChange(selectedExpenses);
+    }
+  }, [selected, expenses, onSelectionChange]);
 
   // Escape to deselect
   useEffect(() => {
@@ -119,17 +163,17 @@ export function ExpenseTable({
       if (e.key === "Escape" && selectedCount > 0) {
         const tag = (e.target as HTMLElement)?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        setRowSelection({});
+        clearSelection();
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [selectedCount]);
+  }, [selectedCount, clearSelection]);
 
   // Bulk edits: when user changes status/paidBy via popover on a selected row, apply to all selected
   const handleBulkStatusChange = useCallback(
     (status: string) => {
-      const selectedIds = Object.keys(rowSelection);
+      const selectedIds = Array.from(selected);
       const batch = selectedIds
         .map((id) => expenses.find((e) => e.id === id))
         .filter(Boolean) as Expense[];
@@ -139,18 +183,18 @@ export function ExpenseTable({
       for (const id of selectedIds) {
         updateExpense.mutate({ id, status } as Parameters<typeof updateExpense.mutate>[0]);
       }
-      setRowSelection({});
+      clearSelection();
     },
-    [rowSelection, updateExpense, expenses, undoStack]
+    [selected, updateExpense, expenses, undoStack, clearSelection]
   );
 
   const handleBulkDelete = useCallback(() => {
-    const selectedIds = Object.keys(rowSelection);
+    const selectedIds = Array.from(selected);
     for (const id of selectedIds) {
       deleteExpense.mutate(id);
     }
-    setRowSelection({});
-  }, [rowSelection, deleteExpense]);
+    clearSelection();
+  }, [selected, deleteExpense, clearSelection]);
 
   return (
     <div className="space-y-2">
@@ -222,7 +266,7 @@ export function ExpenseTable({
             variant="ghost"
             size="sm"
             className="ml-auto h-7"
-            onClick={() => setRowSelection({})}
+            onClick={clearSelection}
           >
             <X className="mr-1 size-3.5" />
             Deselect
@@ -232,9 +276,13 @@ export function ExpenseTable({
 
       <div
         className="overflow-auto rounded-lg border"
-        style={{ maxHeight: "calc(100vh - 280px)" }}
+        {...getContainerProps()}
+        style={{
+          ...getContainerProps().style,
+          maxHeight: "calc(100vh - 280px)",
+        }}
       >
-        <Table>
+        <Table style={{ tableLayout: "fixed" }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -283,7 +331,7 @@ export function ExpenseTable({
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={columnsWithSelection.length}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {activeFilterCount > 0
@@ -292,48 +340,67 @@ export function ExpenseTable({
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
-                <ExpenseContextMenu
-                  key={row.id}
-                  expense={row.original}
-                  members={members}
-                  onEdit={() => onOpenModal(row.original)}
-                  onDuplicate={() => {
-                    const { id: _id, createdAt: _ca, updatedAt: _ua, receiptCount: _rc, createdById: _cb, ...rest } = row.original;
-                    onOpenModal(rest as unknown as Expense);
-                  }}
-                  onStatusChange={(status) =>
-                    onCellEdit(row.original.id, "status", status)
-                  }
-                  onPaidByChange={(paidById) =>
-                    onCellEdit(row.original.id, "paidById", paidById)
-                  }
-                  onViewReceipts={() => onOpenReceipts(row.original)}
-                  onDelete={() => deleteExpense.mutate(row.original.id)}
-                >
-                  <TableRow
-                    data-state={
-                      row.getIsSelected() ? "selected" : undefined
+              rows.map((row) => {
+                const rowProps = getRowProps(row.id);
+                return (
+                  <ExpenseContextMenu
+                    key={row.id}
+                    expense={row.original}
+                    members={members}
+                    onEdit={() => onOpenModal(row.original)}
+                    onDuplicate={() => {
+                      const { id: _id, createdAt: _ca, updatedAt: _ua, receiptCount: _rc, createdById: _cb, ...rest } = row.original;
+                      onOpenModal(rest as unknown as Expense);
+                    }}
+                    onStatusChange={(status) =>
+                      onCellEdit(row.original.id, "status", status)
                     }
-                    className="group"
+                    onPaidByChange={(paidById) =>
+                      onCellEdit(row.original.id, "paidById", paidById)
+                    }
+                    onViewReceipts={() => onOpenReceipts(row.original)}
+                    onDelete={() => deleteExpense.mutate(row.original.id)}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </ExpenseContextMenu>
-              ))
+                    <TableRow
+                      ref={rowProps.ref}
+                      onMouseDown={rowProps.onMouseDown}
+                      data-state={
+                        selected.has(row.id) ? "selected" : undefined
+                      }
+                      className="group"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          style={{ width: cell.column.getSize() }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </ExpenseContextMenu>
+                );
+              })
             )}
           </TableBody>
         </Table>
+
+        {/* Marquee selection rectangle */}
+        {marqueeStyle && (
+          <div
+            className="pointer-events-none absolute border border-primary/60 bg-primary/10"
+            style={{
+              left: marqueeStyle.left,
+              top: marqueeStyle.top,
+              width: marqueeStyle.width,
+              height: marqueeStyle.height,
+              zIndex: 20,
+            }}
+          />
+        )}
       </div>
 
       <div className="flex items-center justify-between px-2 text-sm text-muted-foreground">
@@ -439,8 +506,8 @@ function ColumnFilter({
       <PopoverTrigger className="outline-none">
         <Filter className={`size-3 ${isActive ? "text-primary" : "text-muted-foreground opacity-0 group-hover/header:opacity-100"} hover:text-foreground transition-opacity`} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-48 p-2 gap-0">
-        <div className="space-y-1 max-h-48 overflow-y-auto">
+      <PopoverContent align="start" className="w-48 p-2 pr-0 gap-0">
+        <div className="space-y-1 max-h-[min(300px,calc(100vh-200px))] overflow-y-auto pr-2">
           {options.map((opt) => (
             <label
               key={opt.value}

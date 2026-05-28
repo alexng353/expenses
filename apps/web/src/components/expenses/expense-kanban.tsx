@@ -9,12 +9,15 @@ import { Paperclip } from "lucide-react";
 
 type GroupBy = "status" | "bucketId" | "paidById";
 
+import type { useUndoStack } from "../../hooks/use-undo";
+
 interface ExpenseKanbanProps {
   expenses: Expense[];
   members: EventMember[];
   buckets: EventBucket[];
   onOpenModal: (expense: Expense) => void;
   onOpenReceipts: (expense: Expense) => void;
+  undoStack: ReturnType<typeof useUndoStack>;
 }
 
 const STATUS_ORDER: ExpenseStatus[] = [
@@ -39,6 +42,7 @@ export function ExpenseKanban({
   buckets,
   onOpenModal,
   onOpenReceipts,
+  undoStack,
 }: ExpenseKanbanProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>("status");
   const updateExpense = useUpdateExpense();
@@ -101,20 +105,19 @@ export function ExpenseKanban({
       if (!expenseId) return;
       dragExpenseRef.current = null;
 
-      const value = targetGroupKey === "__none__" ? null : targetGroupKey;
+      const expense = expenses.find((e) => e.id === expenseId);
+      if (!expense) return;
 
-      if (groupBy === "status") {
-        updateExpense.mutate({
-          id: expenseId,
-          status: value as ExpenseStatus,
-        } as Parameters<typeof updateExpense.mutate>[0]);
-      } else if (groupBy === "bucketId") {
-        updateExpense.mutate({ id: expenseId, bucketId: value } as Parameters<typeof updateExpense.mutate>[0]);
-      } else {
-        updateExpense.mutate({ id: expenseId, paidById: value } as Parameters<typeof updateExpense.mutate>[0]);
-      }
+      const value = targetGroupKey === "__none__" ? null : targetGroupKey;
+      const field = groupBy === "status" ? "status" : groupBy;
+      const oldValue = (expense as any)[field];
+
+      if (oldValue === value) return;
+
+      undoStack.push(expense, field, oldValue, value);
+      updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<typeof updateExpense.mutate>[0]);
     },
-    [groupBy, updateExpense]
+    [groupBy, updateExpense, expenses, undoStack]
   );
 
   return (

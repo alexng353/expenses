@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const [modalExpense, setModalExpense] = useState<Expense | null>(null);
   const [receiptExpense, setReceiptExpense] = useState<Expense | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [selectedExpenses, setSelectedExpenses] = useState<Expense[]>([]);
 
   const grantMode = currentEvent?.grantMode ?? false;
 
@@ -114,6 +115,7 @@ export default function DashboardPage() {
                     onOpenModal={handleOpenModal}
                     onOpenReceipts={handleOpenReceipts}
                     undoStack={undoStack}
+                    onSelectionChange={setSelectedExpenses}
                   />
                 )}
               </TabsContent>
@@ -132,6 +134,7 @@ export default function DashboardPage() {
                     buckets={buckets}
                     onOpenModal={handleOpenModal}
                     onOpenReceipts={handleOpenReceipts}
+                    undoStack={undoStack}
                   />
                 )}
               </TabsContent>
@@ -140,7 +143,7 @@ export default function DashboardPage() {
 
           {/* Right: summary sidebar */}
           <div className="hidden w-72 shrink-0 lg:block">
-            <SummaryPanel />
+            <SummaryPanel selectedExpenses={selectedExpenses} buckets={buckets} />
           </div>
         </div>
       </div>

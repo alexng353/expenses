@@ -27,11 +27,21 @@ interface ColumnOptions {
   ) => void;
   editingCell: { rowId: string; columnId: string } | null;
   setEditingCell: (cell: { rowId: string; columnId: string } | null) => void;
+  /** External selection state from useTableSelect */
+  selected?: Set<string>;
+  /** Select/deselect all visible rows */
+  onSelectAll?: () => void;
+  /** Clear all selection */
+  onClearSelection?: () => void;
+  /** Handle checkbox click with shift support */
+  onCheckboxClick?: (rowId: string, shiftKey: boolean) => void;
 }
 
 export function getExpenseColumns(options: ColumnOptions) {
-  const { members, buckets, grantMode, onCellEdit, editingCell, setEditingCell } =
-    options;
+  const {
+    members, buckets, grantMode, onCellEdit, editingCell, setEditingCell,
+    selected, onSelectAll, onClearSelection, onCheckboxClick,
+  } = options;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns: ReturnType<typeof columnHelper.display>[] = [
@@ -39,23 +49,40 @@ export function getExpenseColumns(options: ColumnOptions) {
       id: "select",
       size: 40,
       enableResizing: false,
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          indeterminate={table.getIsSomePageRowsSelected()}
-          onCheckedChange={(checked) =>
-            table.toggleAllPageRowsSelected(checked)
-          }
-          aria-label="Select all"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(checked) => row.toggleSelected(checked)}
-          aria-label="Select row"
-        />
-      ),
+      header: ({ table }) => {
+        const allRowIds = table.getRowModel().rows.map((r) => r.id);
+        const allSelected = selected ? allRowIds.length > 0 && allRowIds.every((id) => selected.has(id)) : false;
+        const someSelected = selected ? !allSelected && allRowIds.some((id) => selected.has(id)) : false;
+
+        return (
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                onSelectAll?.();
+              } else {
+                onClearSelection?.();
+              }
+            }}
+            aria-label="Select all"
+          />
+        );
+      },
+      cell: ({ row }) => {
+        const isSelected = selected ? selected.has(row.id) : false;
+        return (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={(_checked, eventDetails) => {
+              const nativeEvent = eventDetails.event;
+              const shiftKey = nativeEvent instanceof MouseEvent ? nativeEvent.shiftKey : false;
+              onCheckboxClick?.(row.id, shiftKey);
+            }}
+            aria-label="Select row"
+          />
+        );
+      },
     }),
 
     columnHelper.accessor("date", {
