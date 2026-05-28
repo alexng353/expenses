@@ -164,12 +164,12 @@ function SetFilter(
   }
 
   return (
-    <div className="w-48 p-2">
-      <div className="max-h-[calc(100vh-120px)] space-y-1 overflow-y-auto">
+    <div className="ag-set-filter-container min-w-[180px] p-1 text-sm text-popover-foreground">
+      <div className="space-y-0.5">
         {options.map((opt) => (
           <label
             key={opt.value}
-            className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent"
+            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-accent hover:text-accent-foreground"
           >
             <Checkbox
               checked={selected.includes(opt.value)}
@@ -180,12 +180,15 @@ function SetFilter(
         ))}
       </div>
       {selected.length > 0 && (
-        <button
-          className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
-          onClick={() => onModelChange(null)}
-        >
-          Clear
-        </button>
+        <>
+          <div className="my-1 h-px bg-border" />
+          <button
+            className="flex w-full items-center rounded-md px-2 py-1 text-left text-muted-foreground hover:bg-accent hover:text-foreground"
+            onClick={() => onModelChange(null)}
+          >
+            Clear
+          </button>
+        </>
       )}
     </div>
   )

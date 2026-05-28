@@ -136,3 +136,12 @@
     cursor: pointer;
     }
 }
+
+/* AG Grid custom filter popup — let our content size itself, no inner scroll */
+.ag-filter,
+.ag-filter-wrapper,
+.ag-filter-body-wrapper {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
