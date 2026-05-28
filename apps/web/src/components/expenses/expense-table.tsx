@@ -237,26 +237,39 @@ export function ExpenseTable({
   const updateExpense = useUpdateExpense()
   const deleteExpense = useDeleteExpense()
 
-  // Stable ref to expenses for handlers that shouldn't re-create on data change
+  // Stable refs so handlers don't re-create when these objects change identity
+  // (undoStack and the react-query mutation get a fresh object every render —
+  // depending on them would invalidate columnDefs every marquee frame).
   const expensesRef = useRef(expenses)
   useEffect(() => {
     expensesRef.current = expenses
   }, [expenses])
 
-  // Direct dropdown edit (status / paid by / bucket) — bypasses AG Grid editing
+  const undoStackRef = useRef(undoStack)
+  useEffect(() => {
+    undoStackRef.current = undoStack
+  }, [undoStack])
+
+  const updateExpenseRef = useRef(updateExpense)
+  useEffect(() => {
+    updateExpenseRef.current = updateExpense
+  }, [updateExpense])
+
+  // Direct dropdown edit (status / paid by / bucket) — bypasses AG Grid editing.
+  // Stable identity (empty deps) keeps columnDefs from rebuilding per frame.
   const dropdownEdit = useCallback(
     (expenseId: string, field: string, value: string | null) => {
       const expense = expensesRef.current.find((e) => e.id === expenseId)
       if (!expense) return
       const oldValue = (expense as unknown as Record<string, unknown>)[field]
       if (oldValue === value) return
-      undoStack.push(expense, field, oldValue, value)
-      updateExpense.mutate({
+      undoStackRef.current.push(expense, field, oldValue, value)
+      updateExpenseRef.current.mutate({
         id: expenseId,
         [field]: value,
       } as Parameters<typeof updateExpense.mutate>[0])
     },
-    [updateExpense, undoStack]
+    []
   )
 
   // --- Dropdown cell renderers (click to open Popover) ---
