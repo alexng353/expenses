@@ -1,13 +1,13 @@
-import { Button } from "@workspace/ui/components/button";
-import { Undo2, Redo2 } from "lucide-react";
+import { Button } from "@workspace/ui/components/button"
+import { Undo2, Redo2 } from "lucide-react"
 
 interface UndoToastProps {
-  message: string;
-  onUndo: () => void;
-  onRedo: () => void;
-  onDismiss: () => void;
-  undoSize: number;
-  redoSize: number;
+  message: string
+  onUndo: () => void
+  onRedo: () => void
+  onDismiss: () => void
+  undoSize: number
+  redoSize: number
 }
 
 export function UndoToast({
@@ -36,11 +36,11 @@ export function UndoToast({
         )}
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground ml-1 text-lg leading-none"
+          className="ml-1 text-lg leading-none text-muted-foreground hover:text-foreground"
         >
           ×
         </button>
       </div>
     </div>
-  );
+  )
 }

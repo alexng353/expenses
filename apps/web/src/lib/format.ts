@@ -2,19 +2,19 @@ export function formatCurrency(cents: number): string {
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
     currency: "CAD",
-  }).format(cents / 100);
+  }).format(cents / 100)
 }
 
 export function parseCurrencyInput(value: string): number | null {
-  const cleaned = value.replace(/[$,\s]/g, "");
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return null;
-  return Math.round(num * 100);
+  const cleaned = value.replace(/[$,\s]/g, "")
+  const num = parseFloat(cleaned)
+  if (isNaN(num)) return null
+  return Math.round(num * 100)
 }
 
 export function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString("en-CA");
+  if (!dateStr) return ""
+  return new Date(dateStr).toLocaleDateString("en-CA")
 }
 
 export function statusLabel(status: string): string {
@@ -24,8 +24,8 @@ export function statusLabel(status: string): string {
     outstanding: "Outstanding",
     paid: "Paid",
     reimbursed: "Reimbursed",
-  };
-  return labels[status] ?? status;
+  }
+  return labels[status] ?? status
 }
 
 export function statusColor(
@@ -40,6 +40,6 @@ export function statusColor(
     outstanding: "destructive",
     paid: "default",
     reimbursed: "default",
-  };
-  return colors[status] ?? "outline";
+  }
+  return colors[status] ?? "outline"
 }

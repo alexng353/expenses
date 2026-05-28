@@ -1,31 +1,26 @@
-import { useState, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useCallback } from "react"
+import { useQuery } from "@tanstack/react-query"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@workspace/ui/components/dialog";
-import { Button } from "@workspace/ui/components/button";
-import { api } from "../../lib/api";
-import type { Expense, ExpenseReceipt } from "../../lib/types";
+} from "@workspace/ui/components/dialog"
+import { Button } from "@workspace/ui/components/button"
+import { api } from "../../lib/api"
+import type { Expense, ExpenseReceipt } from "../../lib/types"
 import {
   useUploadReceipt,
   useReceiptTagAutocomplete,
-} from "../../hooks/use-expenses";
-import { useEvent } from "../../hooks/use-event";
-import { AutocompleteInput } from "../shared/autocomplete-input";
-import {
-  FileText,
-  Download,
-  Upload,
-  Trash2,
-} from "lucide-react";
+} from "../../hooks/use-expenses"
+import { useEvent } from "../../hooks/use-event"
+import { AutocompleteInput } from "../shared/autocomplete-input"
+import { FileText, Download, Upload, Trash2 } from "lucide-react"
 
 interface ReceiptDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  expense: Expense | null;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  expense: Expense | null
 }
 
 export function ReceiptDialog({
@@ -33,8 +28,8 @@ export function ReceiptDialog({
   onOpenChange,
   expense,
 }: ReceiptDialogProps) {
-  const { currentEvent } = useEvent();
-  const eventId = currentEvent?.id;
+  const { currentEvent } = useEvent()
+  const eventId = currentEvent?.id
 
   const { data: receipts = [], refetch } = useQuery({
     queryKey: ["events", eventId, "expenses", expense?.id, "receipts"],
@@ -43,75 +38,73 @@ export function ReceiptDialog({
         `/events/${eventId}/expenses/${expense!.id}/receipts`
       ),
     enabled: !!eventId && !!expense?.id && open,
-  });
+  })
 
-  const uploadReceipt = useUploadReceipt();
-  const { data: tagSuggestions = [] } = useReceiptTagAutocomplete();
+  const uploadReceipt = useUploadReceipt()
+  const { data: tagSuggestions = [] } = useReceiptTagAutocomplete()
 
-  const [uploading, setUploading] = useState(false);
-  const [tag, setTag] = useState("");
+  const [uploading, setUploading] = useState(false)
+  const [tag, setTag] = useState("")
 
   const handleUpload = useCallback(
     async (files: FileList | null) => {
-      if (!files || !expense) return;
-      setUploading(true);
+      if (!files || !expense) return
+      setUploading(true)
       try {
         for (const file of Array.from(files)) {
           await uploadReceipt.mutateAsync({
             expenseId: expense.id,
             file,
             tag: tag || undefined,
-          });
+          })
         }
-        setTag("");
-        await refetch();
+        setTag("")
+        await refetch()
       } finally {
-        setUploading(false);
+        setUploading(false)
       }
     },
     [expense, uploadReceipt, tag, refetch]
-  );
+  )
 
   const handleDelete = useCallback(
     async (receiptId: string) => {
-      if (!expense || !eventId) return;
+      if (!expense || !eventId) return
       await api(
         `/events/${eventId}/expenses/${expense.id}/receipts/${receiptId}`,
         { method: "DELETE" }
-      );
-      await refetch();
+      )
+      await refetch()
     },
     [expense, eventId, refetch]
-  );
+  )
 
   const handleViewReceipt = useCallback(
     async (receipt: ExpenseReceipt) => {
-      if (!expense || !eventId) return;
+      if (!expense || !eventId) return
       try {
         const { url } = await api<{ url: string }>(
           `/events/${eventId}/expenses/${expense.id}/receipts/${receipt.id}/url`
-        );
-        window.open(url, "_blank");
+        )
+        window.open(url, "_blank")
       } catch {
         // Fallback: try direct download
         window.open(
           `${import.meta.env.VITE_API_URL ?? "http://localhost:8888/api"}/events/${eventId}/expenses/${expense.id}/receipts/${receipt.id}/download`,
           "_blank"
-        );
+        )
       }
     },
     [expense, eventId]
-  );
+  )
 
-  if (!expense) return null;
+  if (!expense) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Receipts for {expense.name}
-          </DialogTitle>
+          <DialogTitle>Receipts for {expense.name}</DialogTitle>
         </DialogHeader>
 
         {/* Existing receipts */}
@@ -133,10 +126,7 @@ export function ReceiptDialog({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatFileSize(receipt.fileSize)}
-                    {receipt.tag && (
-                      <> &middot; {receipt.tag}</>
-                    )}
-                    {" "}&middot;{" "}
+                    {receipt.tag && <> &middot; {receipt.tag}</>} &middot;{" "}
                     {new Date(receipt.createdAt).toLocaleDateString("en-CA")}
                   </p>
                 </div>
@@ -201,11 +191,11 @@ export function ReceiptDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

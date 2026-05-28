@@ -1,45 +1,43 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
-import { useAuth } from "../hooks/use-auth";
-import { Button } from "@workspace/ui/components/button";
+import { useState } from "react"
+import { useNavigate } from "react-router"
+import { useAuth } from "../hooks/use-auth"
+import { Button } from "@workspace/ui/components/button"
 
 export default function LoginPage() {
-  const { login, user } = useAuth();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { login, user } = useAuth()
+  const navigate = useNavigate()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   if (user) {
-    navigate("/", { replace: true });
-    return null;
+    navigate("/", { replace: true })
+    return null
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+    e.preventDefault()
+    setError("")
+    setLoading(true)
     try {
-      await login(email, password);
-      navigate("/");
+      await login(email, password)
+      navigate("/")
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Login failed"
-      );
+      setError(err instanceof Error ? err.message : "Login failed")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api";
+  const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api"
 
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">Expense Tracker</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Sign in to your account
           </p>
         </div>
@@ -54,7 +52,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               required
             />
           </div>
@@ -67,12 +65,12 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               required
             />
           </div>
 
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
@@ -84,7 +82,7 @@ export default function LoginPage() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background text-muted-foreground px-2">Or</span>
+            <span className="bg-background px-2 text-muted-foreground">Or</span>
           </div>
         </div>
 
@@ -92,12 +90,12 @@ export default function LoginPage() {
           variant="outline"
           className="w-full"
           onClick={() => {
-            window.location.href = `${API_BASE}/auth/google`;
+            window.location.href = `${API_BASE}/auth/google`
           }}
         >
           Continue with Google
         </Button>
       </div>
     </div>
-  );
+  )
 }

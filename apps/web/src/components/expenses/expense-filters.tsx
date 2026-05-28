@@ -1,12 +1,12 @@
-import { useCallback } from "react";
-import { Checkbox } from "@workspace/ui/components/checkbox";
-import type { Expense } from "../../lib/types";
+import { useCallback } from "react"
+import { Checkbox } from "@workspace/ui/components/checkbox"
+import type { Expense } from "../../lib/types"
 
 export interface FilterState {
-  missingReceipt: boolean;
-  missingNotes: boolean;
-  missingMotion: boolean;
-  missingCategory: boolean;
+  missingReceipt: boolean
+  missingNotes: boolean
+  missingMotion: boolean
+  missingCategory: boolean
 }
 
 export const DEFAULT_FILTERS: FilterState = {
@@ -14,12 +14,12 @@ export const DEFAULT_FILTERS: FilterState = {
   missingNotes: false,
   missingMotion: false,
   missingCategory: false,
-};
+}
 
 interface ExpenseFiltersProps {
-  filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
-  grantMode: boolean;
+  filters: FilterState
+  onFiltersChange: (filters: FilterState) => void
+  grantMode: boolean
 }
 
 export function ExpenseFilters({
@@ -29,16 +29,16 @@ export function ExpenseFilters({
 }: ExpenseFiltersProps) {
   const toggle = useCallback(
     (key: keyof FilterState) => {
-      onFiltersChange({ ...filters, [key]: !filters[key] });
+      onFiltersChange({ ...filters, [key]: !filters[key] })
     },
     [filters, onFiltersChange]
-  );
+  )
 
   const anyActive =
     filters.missingReceipt ||
     filters.missingNotes ||
     filters.missingMotion ||
-    filters.missingCategory;
+    filters.missingCategory
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -98,19 +98,21 @@ export function ExpenseFilters({
         </button>
       )}
     </div>
-  );
+  )
 }
 
 /** Build a filter function from the current filter state (OR logic). */
-export function buildFilterFn(filters: FilterState): ((expense: Expense) => boolean) | undefined {
-  const checks: ((e: Expense) => boolean)[] = [];
+export function buildFilterFn(
+  filters: FilterState
+): ((expense: Expense) => boolean) | undefined {
+  const checks: ((e: Expense) => boolean)[] = []
 
-  if (filters.missingReceipt) checks.push((e) => e.receiptCount === 0);
-  if (filters.missingNotes) checks.push((e) => !e.notes);
-  if (filters.missingMotion) checks.push((e) => e.motionNumber == null);
-  if (filters.missingCategory) checks.push((e) => !e.grantCategoryId);
+  if (filters.missingReceipt) checks.push((e) => e.receiptCount === 0)
+  if (filters.missingNotes) checks.push((e) => !e.notes)
+  if (filters.missingMotion) checks.push((e) => e.motionNumber == null)
+  if (filters.missingCategory) checks.push((e) => !e.grantCategoryId)
 
-  if (checks.length === 0) return undefined;
+  if (checks.length === 0) return undefined
 
-  return (expense: Expense) => checks.some((check) => check(expense));
+  return (expense: Expense) => checks.some((check) => check(expense))
 }

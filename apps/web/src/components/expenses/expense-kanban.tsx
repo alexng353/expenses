@@ -1,23 +1,28 @@
-import { useState, useCallback, useMemo, useRef } from "react";
-import type { Expense, EventMember, EventBucket, ExpenseStatus } from "../../lib/types";
-import { useUpdateExpense } from "../../hooks/use-expenses";
-import { formatCurrency, formatDate } from "../../lib/format";
-import { StatusBadge } from "./status-badge";
-import { PaidByBadge } from "./paid-by-badge";
-import { ScrollArea } from "@workspace/ui/components/scroll-area";
-import { Paperclip } from "lucide-react";
+import { useState, useCallback, useMemo, useRef } from "react"
+import type {
+  Expense,
+  EventMember,
+  EventBucket,
+  ExpenseStatus,
+} from "../../lib/types"
+import { useUpdateExpense } from "../../hooks/use-expenses"
+import { formatCurrency, formatDate } from "../../lib/format"
+import { StatusBadge } from "./status-badge"
+import { PaidByBadge } from "./paid-by-badge"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import { Paperclip } from "lucide-react"
 
-type GroupBy = "status" | "bucketId" | "paidById";
+type GroupBy = "status" | "bucketId" | "paidById"
 
-import type { useUndoStack } from "../../hooks/use-undo";
+import type { useUndoStack } from "../../hooks/use-undo"
 
 interface ExpenseKanbanProps {
-  expenses: Expense[];
-  members: EventMember[];
-  buckets: EventBucket[];
-  onOpenModal: (expense: Expense) => void;
-  onOpenReceipts: (expense: Expense) => void;
-  undoStack: ReturnType<typeof useUndoStack>;
+  expenses: Expense[]
+  members: EventMember[]
+  buckets: EventBucket[]
+  onOpenModal: (expense: Expense) => void
+  onOpenReceipts: (expense: Expense) => void
+  undoStack: ReturnType<typeof useUndoStack>
 }
 
 const STATUS_ORDER: ExpenseStatus[] = [
@@ -26,7 +31,7 @@ const STATUS_ORDER: ExpenseStatus[] = [
   "approved",
   "paid",
   "reimbursed",
-];
+]
 
 const STATUS_LABELS: Record<string, string> = {
   outstanding: "Outstanding",
@@ -34,7 +39,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "Approved",
   paid: "Paid",
   reimbursed: "Reimbursed",
-};
+}
 
 export function ExpenseKanban({
   expenses,
@@ -44,81 +49,83 @@ export function ExpenseKanban({
   onOpenReceipts,
   undoStack,
 }: ExpenseKanbanProps) {
-  const [groupBy, setGroupBy] = useState<GroupBy>("status");
-  const updateExpense = useUpdateExpense();
-  const dragExpenseRef = useRef<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupBy>("status")
+  const updateExpense = useUpdateExpense()
+  const dragExpenseRef = useRef<string | null>(null)
 
   const groups = useMemo(() => {
-    const map = new Map<string, { label: string; expenses: Expense[] }>();
+    const map = new Map<string, { label: string; expenses: Expense[] }>()
 
     if (groupBy === "status") {
       for (const status of STATUS_ORDER) {
         map.set(status, {
           label: STATUS_LABELS[status],
           expenses: [],
-        });
+        })
       }
     } else if (groupBy === "bucketId") {
-      map.set("__none__", { label: "No Bucket", expenses: [] });
+      map.set("__none__", { label: "No Bucket", expenses: [] })
       for (const bucket of buckets) {
-        map.set(bucket.id, { label: bucket.name, expenses: [] });
+        map.set(bucket.id, { label: bucket.name, expenses: [] })
       }
     } else {
-      map.set("__none__", { label: "Unassigned", expenses: [] });
+      map.set("__none__", { label: "Unassigned", expenses: [] })
       for (const member of members) {
-        map.set(member.userId, { label: member.userName, expenses: [] });
+        map.set(member.userId, { label: member.userName, expenses: [] })
       }
     }
 
     for (const expense of expenses) {
-      let key: string;
+      let key: string
       if (groupBy === "status") {
-        key = expense.status;
+        key = expense.status
       } else if (groupBy === "bucketId") {
-        key = expense.bucketId ?? "__none__";
+        key = expense.bucketId ?? "__none__"
       } else {
-        key = expense.paidById ?? "__none__";
+        key = expense.paidById ?? "__none__"
       }
 
-      const group = map.get(key);
+      const group = map.get(key)
       if (group) {
-        group.expenses.push(expense);
+        group.expenses.push(expense)
       } else {
         // Fallback for unknown keys
-        const existing = map.get("__none__");
+        const existing = map.get("__none__")
         if (existing) {
-          existing.expenses.push(expense);
+          existing.expenses.push(expense)
         }
       }
     }
 
-    return map;
-  }, [expenses, groupBy, buckets, members]);
+    return map
+  }, [expenses, groupBy, buckets, members])
 
   const handleDragStart = useCallback((expenseId: string) => {
-    dragExpenseRef.current = expenseId;
-  }, []);
+    dragExpenseRef.current = expenseId
+  }, [])
 
   const handleDrop = useCallback(
     (targetGroupKey: string) => {
-      const expenseId = dragExpenseRef.current;
-      if (!expenseId) return;
-      dragExpenseRef.current = null;
+      const expenseId = dragExpenseRef.current
+      if (!expenseId) return
+      dragExpenseRef.current = null
 
-      const expense = expenses.find((e) => e.id === expenseId);
-      if (!expense) return;
+      const expense = expenses.find((e) => e.id === expenseId)
+      if (!expense) return
 
-      const value = targetGroupKey === "__none__" ? null : targetGroupKey;
-      const field = groupBy === "status" ? "status" : groupBy;
-      const oldValue = (expense as any)[field];
+      const value = targetGroupKey === "__none__" ? null : targetGroupKey
+      const field = groupBy === "status" ? "status" : groupBy
+      const oldValue = (expense as any)[field]
 
-      if (oldValue === value) return;
+      if (oldValue === value) return
 
-      undoStack.push(expense, field, oldValue, value);
-      updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<typeof updateExpense.mutate>[0]);
+      undoStack.push(expense, field, oldValue, value)
+      updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<
+        typeof updateExpense.mutate
+      >[0])
     },
     [groupBy, updateExpense, expenses, undoStack]
-  );
+  )
 
   return (
     <div className="space-y-3">
@@ -130,7 +137,7 @@ export function ExpenseKanban({
         <select
           value={groupBy}
           onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-          className="border-input bg-background rounded-lg border px-2 py-1 text-sm outline-none focus:border-ring"
+          className="rounded-lg border border-input bg-background px-2 py-1 text-sm outline-none focus:border-ring"
         >
           <option value="status">Status</option>
           <option value="bucketId">Bucket</option>
@@ -145,16 +152,16 @@ export function ExpenseKanban({
             key={key}
             className="flex w-72 min-w-72 flex-col rounded-lg border bg-muted/30"
             onDragOver={(e) => {
-              e.preventDefault();
-              e.currentTarget.classList.add("ring-2", "ring-primary/50");
+              e.preventDefault()
+              e.currentTarget.classList.add("ring-2", "ring-primary/50")
             }}
             onDragLeave={(e) => {
-              e.currentTarget.classList.remove("ring-2", "ring-primary/50");
+              e.currentTarget.classList.remove("ring-2", "ring-primary/50")
             }}
             onDrop={(e) => {
-              e.preventDefault();
-              e.currentTarget.classList.remove("ring-2", "ring-primary/50");
-              handleDrop(key);
+              e.preventDefault()
+              e.currentTarget.classList.remove("ring-2", "ring-primary/50")
+              handleDrop(key)
             }}
           >
             {/* Column header */}
@@ -199,7 +206,7 @@ export function ExpenseKanban({
         ))}
       </div>
     </div>
-  );
+  )
 }
 
 function KanbanCard({
@@ -211,16 +218,16 @@ function KanbanCard({
   onClick,
   onReceiptClick,
 }: {
-  expense: Expense;
-  members: EventMember[];
-  buckets: EventBucket[];
-  groupBy: GroupBy;
-  onDragStart: (id: string) => void;
-  onClick: () => void;
-  onReceiptClick: () => void;
+  expense: Expense
+  members: EventMember[]
+  buckets: EventBucket[]
+  groupBy: GroupBy
+  onDragStart: (id: string) => void
+  onClick: () => void
+  onReceiptClick: () => void
 }) {
-  const member = members.find((m) => m.userId === expense.paidById);
-  const bucket = buckets.find((b) => b.id === expense.bucketId);
+  const member = members.find((m) => m.userId === expense.paidById)
+  const bucket = buckets.find((b) => b.id === expense.bucketId)
 
   return (
     <div
@@ -230,7 +237,7 @@ function KanbanCard({
       className="cursor-pointer rounded-lg border bg-background p-3 shadow-sm transition-shadow hover:shadow-md active:shadow-lg"
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm font-medium leading-tight">{expense.name}</h4>
+        <h4 className="text-sm leading-tight font-medium">{expense.name}</h4>
         <span className="shrink-0 text-sm font-semibold tabular-nums">
           {formatCurrency(expense.amountCents)}
         </span>
@@ -238,9 +245,7 @@ function KanbanCard({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {/* Show status unless grouped by status */}
-        {groupBy !== "status" && (
-          <StatusBadge status={expense.status} />
-        )}
+        {groupBy !== "status" && <StatusBadge status={expense.status} />}
 
         {/* Show paid by unless grouped by paidById */}
         {groupBy !== "paidById" && member && (
@@ -260,8 +265,8 @@ function KanbanCard({
         {expense.receiptCount > 0 && (
           <button
             onClick={(e) => {
-              e.stopPropagation();
-              onReceiptClick();
+              e.stopPropagation()
+              onReceiptClick()
             }}
             className="flex items-center gap-0.5 hover:text-foreground"
           >
@@ -271,5 +276,5 @@ function KanbanCard({
         )}
       </div>
     </div>
-  );
+  )
 }

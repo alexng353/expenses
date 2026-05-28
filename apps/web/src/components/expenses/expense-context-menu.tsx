@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from "react"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,8 +8,8 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
-} from "@workspace/ui/components/context-menu";
-import type { Expense, EventMember, ExpenseStatus } from "../../lib/types";
+} from "@workspace/ui/components/context-menu"
+import type { Expense, EventMember, ExpenseStatus } from "../../lib/types"
 import {
   Pencil,
   Copy,
@@ -18,7 +18,7 @@ import {
   Paperclip,
   Upload,
   Trash2,
-} from "lucide-react";
+} from "lucide-react"
 
 const STATUSES: { value: ExpenseStatus; label: string }[] = [
   { value: "outstanding", label: "Outstanding" },
@@ -26,18 +26,18 @@ const STATUSES: { value: ExpenseStatus; label: string }[] = [
   { value: "approved", label: "Approved" },
   { value: "paid", label: "Paid" },
   { value: "reimbursed", label: "Reimbursed" },
-];
+]
 
 interface ExpenseContextMenuProps {
-  children: ReactNode;
-  expense: Expense;
-  members: EventMember[];
-  onEdit: () => void;
-  onDuplicate: () => void;
-  onStatusChange: (status: ExpenseStatus) => void;
-  onPaidByChange: (userId: string | null) => void;
-  onViewReceipts: () => void;
-  onDelete: () => void;
+  children: ReactNode
+  expense: Expense
+  members: EventMember[]
+  onEdit: () => void
+  onDuplicate: () => void
+  onStatusChange: (status: ExpenseStatus) => void
+  onPaidByChange: (userId: string | null) => void
+  onViewReceipts: () => void
+  onDelete: () => void
 }
 
 export function ExpenseContextMenu({
@@ -77,9 +77,7 @@ export function ExpenseContextMenu({
               <ContextMenuItem
                 key={s.value}
                 onClick={() => onStatusChange(s.value)}
-                className={
-                  expense.status === s.value ? "font-semibold" : ""
-                }
+                className={expense.status === s.value ? "font-semibold" : ""}
               >
                 {s.label}
                 {expense.status === s.value && (
@@ -109,9 +107,7 @@ export function ExpenseContextMenu({
               <ContextMenuItem
                 key={m.userId}
                 onClick={() => onPaidByChange(m.userId)}
-                className={
-                  expense.paidById === m.userId ? "font-semibold" : ""
-                }
+                className={expense.paidById === m.userId ? "font-semibold" : ""}
               >
                 {m.userName}
                 {expense.paidById === m.userId && (
@@ -143,5 +139,5 @@ export function ExpenseContextMenu({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-  );
+  )
 }

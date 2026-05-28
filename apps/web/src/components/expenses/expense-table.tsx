@@ -1,256 +1,526 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import { AgGridReact } from "ag-grid-react"
 import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  flexRender,
-  type SortingState,
-  type ColumnFiltersState,
-} from "@tanstack/react-table";
-import { useTableSelect } from "../../hooks/use-table-select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table";
-import { Button } from "@workspace/ui/components/button";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@workspace/ui/components/popover";
-import { Input } from "@workspace/ui/components/input";
-import { Checkbox } from "@workspace/ui/components/checkbox";
-import type { Expense, EventMember, EventBucket } from "../../lib/types";
-import { getExpenseColumns } from "./expense-columns";
-import { useUpdateExpense, useDeleteExpense } from "../../hooks/use-expenses";
-import { ExpenseContextMenu } from "./expense-context-menu";
-import { formatCurrency } from "../../lib/format";
-import { Trash2, ArrowRightLeft, Filter, X } from "lucide-react";
-import type { useUndoStack } from "../../hooks/use-undo";
+  AllCommunityModule,
+  ModuleRegistry,
+  themeQuartz,
+  type ColDef,
+  type GridApi,
+  type CellValueChangedEvent,
+  type SelectionChangedEvent,
+  type CellContextMenuEvent,
+  type ICellRendererParams,
+  type GridReadyEvent,
+} from "ag-grid-community"
+import { useMarqueeSelect } from "../../hooks/use-table-select"
+import { Button } from "@workspace/ui/components/button"
+import type {
+  Expense,
+  EventMember,
+  EventBucket,
+  ExpenseStatus,
+} from "../../lib/types"
+import { useUpdateExpense, useDeleteExpense } from "../../hooks/use-expenses"
+// ExpenseContextMenu not used directly — AG Grid uses a portal-based context menu
+import { StatusBadge } from "./status-badge"
+import { PaidByBadge } from "./paid-by-badge"
+import { formatCurrency, formatDate, statusLabel } from "../../lib/format"
+import { Trash2, ArrowRightLeft, X, Paperclip } from "lucide-react"
+import type { useUndoStack } from "../../hooks/use-undo"
+
+ModuleRegistry.registerModules([AllCommunityModule])
+
+const agTheme = themeQuartz.withParams({
+  backgroundColor: "var(--background)",
+  foregroundColor: "var(--foreground)",
+  headerBackgroundColor: "var(--background)",
+  headerTextColor: "var(--foreground)",
+  borderColor: "var(--border)",
+  rowHoverColor: "var(--accent)",
+  selectedRowBackgroundColor: "hsl(var(--primary) / 0.08)",
+  oddRowBackgroundColor: "var(--background)",
+  headerFontSize: 13,
+  fontSize: 13,
+  rowBorder: true,
+  columnBorder: false,
+  wrapperBorder: false,
+  wrapperBorderRadius: "0.5rem",
+  spacing: 4,
+  cellHorizontalPadding: 12,
+})
 
 interface ExpenseTableProps {
-  expenses: Expense[];
-  members: EventMember[];
-  buckets: EventBucket[];
-  grantMode: boolean;
-  onOpenModal: (expense?: Expense) => void;
-  onOpenReceipts: (expense: Expense) => void;
-  undoStack: ReturnType<typeof useUndoStack>;
-  /** Callback — fires on committed selection AND during marquee drag (via rAF) */
-  onSelectionChange?: (selectedExpenses: Expense[]) => void;
+  expenses: Expense[]
+  members: EventMember[]
+  buckets: EventBucket[]
+  grantMode: boolean
+  onOpenModal: (expense?: Expense) => void
+  onOpenReceipts: (expense: Expense) => void
+  undoStack: ReturnType<typeof useUndoStack>
+  onSelectionChange?: (selectedExpenses: Expense[]) => void
 }
+
+// --- Custom cell renderers ---
+
+function StatusCellRenderer(props: ICellRendererParams<Expense>) {
+  if (!props.data) return null
+  return <StatusBadge status={props.data.status} />
+}
+
+function PaidByCellRenderer(
+  props: ICellRendererParams<Expense> & { members: EventMember[] }
+) {
+  if (!props.data) return null
+  const member = props.members.find((m) => m.userId === props.data!.paidById)
+  if (!member)
+    return <span className="text-muted-foreground italic">Unassigned</span>
+  return <PaidByBadge name={member.userName} userId={member.userId} />
+}
+
+function BucketCellRenderer(
+  props: ICellRendererParams<Expense> & { buckets: EventBucket[] }
+) {
+  if (!props.data) return null
+  const bucket = props.buckets.find((b) => b.id === props.data!.bucketId)
+  if (!bucket)
+    return <span className="text-muted-foreground italic">No bucket</span>
+  return <>{bucket.name}</>
+}
+
+function ReceiptCellRenderer(props: ICellRendererParams<Expense>) {
+  if (!props.data) return null
+  return (
+    <span className="flex items-center gap-1 text-muted-foreground">
+      <Paperclip className="size-3.5" />
+      {props.data.receiptCount}
+    </span>
+  )
+}
+
+function AmountCellRenderer(props: ICellRendererParams<Expense>) {
+  if (!props.data) return null
+  return (
+    <span className="tabular-nums">
+      {formatCurrency(props.data.amountCents)}
+    </span>
+  )
+}
+
+function DateCellRenderer(props: ICellRendererParams<Expense>) {
+  if (!props.data) return null
+  const d = formatDate(props.data.date)
+  if (!d) return <span className="text-muted-foreground italic">No date</span>
+  return <>{d}</>
+}
+
+// --- Main component ---
 
 export function ExpenseTable({
   expenses,
   members,
   buckets,
-  grantMode,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  grantMode: _grantMode,
   onOpenModal,
   onOpenReceipts,
   undoStack,
   onSelectionChange,
 }: ExpenseTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [editingCell, setEditingCell] = useState<{
-    rowId: string;
-    columnId: string;
-  } | null>(null);
-  const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const gridRef = useRef<AgGridReact<Expense>>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [gridApi, setGridApi] = useState<GridApi<Expense> | null>(null)
+  const [selectedCount, setSelectedCount] = useState(0)
+  const [contextMenuExpense, setContextMenuExpense] = useState<Expense | null>(
+    null
+  )
+  const [contextMenuPos, setContextMenuPos] = useState<{
+    x: number
+    y: number
+  } | null>(null)
 
-  const updateExpense = useUpdateExpense();
-  const deleteExpense = useDeleteExpense();
+  const updateExpense = useUpdateExpense()
+  const deleteExpense = useDeleteExpense()
+
+  // --- Build stable cell renderer components that close over members/buckets ---
+  const PaidByRenderer = useMemo(() => {
+    return function PaidByRendererInner(props: ICellRendererParams<Expense>) {
+      return <PaidByCellRenderer {...props} members={members} />
+    }
+  }, [members])
+
+  const BucketRenderer = useMemo(() => {
+    return function BucketRendererInner(props: ICellRendererParams<Expense>) {
+      return <BucketCellRenderer {...props} buckets={buckets} />
+    }
+  }, [buckets])
+
+  // Status value labels for select editor
+  const statusOptions = useMemo(
+    () => [
+      "outstanding",
+      "awaiting_approval",
+      "approved",
+      "paid",
+      "reimbursed",
+    ],
+    []
+  )
+
+  const paidByOptions = useMemo(
+    () => ["", ...members.map((m) => m.userId)],
+    [members]
+  )
+
+  const bucketOptions = useMemo(
+    () => ["", ...buckets.map((b) => b.id)],
+    [buckets]
+  )
+
+  // --- Column definitions ---
+  const columnDefs = useMemo<ColDef<Expense>[]>(() => {
+    const paidByValueMap = new Map<string, string>()
+    paidByValueMap.set("", "Unassigned")
+    for (const m of members) paidByValueMap.set(m.userId, m.userName)
+
+    const bucketValueMap = new Map<string, string>()
+    bucketValueMap.set("", "No bucket")
+    for (const b of buckets) bucketValueMap.set(b.id, b.name)
+
+    return [
+      {
+        headerName: "",
+        field: "id" as keyof Expense,
+        width: 48,
+        maxWidth: 48,
+        checkboxSelection: true,
+        headerCheckboxSelection: true,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        editable: false,
+        suppressHeaderMenuButton: true,
+      },
+      {
+        headerName: "Date",
+        field: "date",
+        width: 120,
+        cellRenderer: DateCellRenderer,
+        editable: true,
+        cellEditor: "agDateStringCellEditor",
+        filter: "agTextColumnFilter",
+      },
+      {
+        headerName: "Name",
+        field: "name",
+        width: 220,
+        editable: true,
+        cellStyle: { fontWeight: 500 } as Record<string, string | number>,
+        filter: "agTextColumnFilter",
+      },
+      {
+        headerName: "Amount",
+        field: "amountCents",
+        width: 130,
+        cellRenderer: AmountCellRenderer,
+        editable: true,
+        filter: "agNumberColumnFilter",
+        valueFormatter: (params) =>
+          params.value != null ? (params.value / 100).toFixed(2) : "",
+        valueParser: (params) => {
+          const num = parseFloat(
+            String(params.newValue).replace(/[^0-9.]/g, "")
+          )
+          return isNaN(num) ? params.oldValue : Math.round(num * 100)
+        },
+      },
+      {
+        headerName: "Status",
+        field: "status",
+        width: 160,
+        cellRenderer: StatusCellRenderer,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: {
+          values: statusOptions,
+        },
+        valueFormatter: (params) => statusLabel(params.value ?? ""),
+        filter: "agSetColumnFilter",
+        filterParams: {
+          values: statusOptions,
+          valueFormatter: (params: { value: string }) =>
+            statusLabel(params.value),
+        },
+      },
+      {
+        headerName: "Paid By",
+        field: "paidById",
+        width: 150,
+        cellRenderer: PaidByRenderer,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: {
+          values: paidByOptions,
+        },
+        valueFormatter: (params) =>
+          paidByValueMap.get(params.value ?? "") ?? "Unassigned",
+        filter: "agSetColumnFilter",
+        filterParams: {
+          values: paidByOptions,
+          valueFormatter: (params: { value: string }) =>
+            paidByValueMap.get(params.value) ?? "Unassigned",
+        },
+      },
+      {
+        headerName: "Bucket",
+        field: "bucketId",
+        width: 140,
+        cellRenderer: BucketRenderer,
+        editable: true,
+        cellEditor: "agSelectCellEditor",
+        cellEditorParams: {
+          values: bucketOptions,
+        },
+        valueFormatter: (params) =>
+          bucketValueMap.get(params.value ?? "") ?? "No bucket",
+        filter: "agSetColumnFilter",
+        filterParams: {
+          values: bucketOptions,
+          valueFormatter: (params: { value: string }) =>
+            bucketValueMap.get(params.value) ?? "No bucket",
+        },
+      },
+      {
+        headerName: "Notes",
+        field: "notes",
+        width: 250,
+        editable: true,
+        cellStyle: { whiteSpace: "pre-wrap", lineHeight: "1.4" } as Record<
+          string,
+          string | number
+        >,
+        autoHeight: true,
+        filter: "agTextColumnFilter",
+      },
+      {
+        headerName: "Receipts",
+        field: "receiptCount",
+        width: 90,
+        cellRenderer: ReceiptCellRenderer,
+        editable: false,
+        filter: false,
+      },
+    ]
+  }, [
+    members,
+    buckets,
+    statusOptions,
+    paidByOptions,
+    bucketOptions,
+    PaidByRenderer,
+    BucketRenderer,
+  ])
+
+  const defaultColDef = useMemo<ColDef<Expense>>(
+    () => ({
+      resizable: true,
+      sortable: true,
+      filter: true,
+      suppressHeaderMenuButton: false,
+    }),
+    []
+  )
+
+  // --- Event handlers ---
+
+  const onGridReady = useCallback((event: GridReadyEvent<Expense>) => {
+    setGridApi(event.api)
+  }, [])
+
+  const expensesRef = useRef(expenses)
+  useEffect(() => {
+    expensesRef.current = expenses
+  }, [expenses])
+
+  const onCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<Expense>) => {
+      if (!event.data) return
+      const field = event.colDef.field as string
+      const oldValue = event.oldValue
+      let newValue = event.newValue
+
+      // For paidById/bucketId, convert empty string to null
+      if ((field === "paidById" || field === "bucketId") && newValue === "") {
+        newValue = null
+      }
+
+      // Skip if no actual change
+      if (oldValue === newValue) return
+
+      // Find the original expense for undo
+      const expense = expensesRef.current.find((e) => e.id === event.data!.id)
+      if (expense) {
+        undoStack.push(expense, field, oldValue, newValue)
+      }
+
+      updateExpense.mutate({
+        id: event.data.id,
+        [field]: newValue,
+      } as Parameters<typeof updateExpense.mutate>[0])
+    },
+    [updateExpense, undoStack]
+  )
+
+  const onSelectionChanged = useCallback(
+    (event: SelectionChangedEvent<Expense>) => {
+      const selected = event.api.getSelectedRows()
+      setSelectedCount(selected.length)
+      onSelectionChange?.(selected)
+    },
+    [onSelectionChange]
+  )
+
+  // Context menu via AG Grid event
+  const onCellContextMenu = useCallback(
+    (event: CellContextMenuEvent<Expense>) => {
+      if (!event.data) return
+      event.event?.preventDefault()
+      const mouseEvent = event.event as MouseEvent
+      setContextMenuExpense(event.data)
+      setContextMenuPos({ x: mouseEvent.clientX, y: mouseEvent.clientY })
+    },
+    []
+  )
+
+  // Close context menu
+  useEffect(() => {
+    if (!contextMenuPos) return
+    const handler = () => {
+      setContextMenuExpense(null)
+      setContextMenuPos(null)
+    }
+    document.addEventListener("click", handler)
+    document.addEventListener("contextmenu", handler)
+    return () => {
+      document.removeEventListener("click", handler)
+      document.removeEventListener("contextmenu", handler)
+    }
+  }, [contextMenuPos])
 
   const onCellEdit = useCallback(
     (expenseId: string, field: string, value: unknown) => {
-      const expense = expenses.find((e) => e.id === expenseId);
+      const expense = expenses.find((e) => e.id === expenseId)
       if (expense) {
-        undoStack.push(expense, field, (expense as any)[field], value);
+        undoStack.push(
+          expense,
+          field,
+          (expense as unknown as Record<string, unknown>)[field],
+          value
+        )
       }
-      updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<typeof updateExpense.mutate>[0]);
+      updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<
+        typeof updateExpense.mutate
+      >[0])
     },
     [updateExpense, expenses, undoStack]
-  );
+  )
 
-  // We build the table first (without selection), then derive rowIds from it
-  // for the selection hook. We use a two-pass approach: memoize columns without
-  // selection first, build the table, get row IDs, then pass selection into columns.
+  // --- Bulk actions ---
 
-  const table = useReactTable({
-    data: expenses,
-    columns: useMemo(
-      () =>
-        getExpenseColumns({
-          members,
-          buckets,
-          grantMode,
-          onCellEdit,
-          editingCell,
-          setEditingCell,
-        }),
-      [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell]
-    ),
-    state: {
-      sorting,
-      columnSizing,
-      columnFilters,
+  const getSelectedIds = useCallback((): string[] => {
+    if (!gridApi) return []
+    return gridApi.getSelectedRows().map((r) => r.id)
+  }, [gridApi])
+
+  const clearSelection = useCallback(() => {
+    gridApi?.deselectAll()
+  }, [gridApi])
+
+  const handleBulkStatusChange = useCallback(
+    (status: string) => {
+      const selectedIds = getSelectedIds()
+      const batch = selectedIds
+        .map((id) => expenses.find((e) => e.id === id))
+        .filter(Boolean) as Expense[]
+      undoStack.pushBatch(
+        batch.map((e) => ({ expense: e, field: "status", oldValue: e.status }))
+      )
+      for (const id of selectedIds) {
+        updateExpense.mutate({ id, status } as Parameters<
+          typeof updateExpense.mutate
+        >[0])
+      }
+      clearSelection()
     },
-    onSortingChange: setSorting,
-    onColumnSizingChange: setColumnSizing,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getRowId: (row) => row.id,
-    enableColumnResizing: true,
-    columnResizeMode: "onChange",
-  });
+    [getSelectedIds, updateExpense, expenses, undoStack, clearSelection]
+  )
 
-  const { rows } = table.getRowModel();
-  const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const handleBulkDelete = useCallback(() => {
+    const selectedIds = getSelectedIds()
+    for (const id of selectedIds) {
+      deleteExpense.mutate(id)
+    }
+    clearSelection()
+  }, [getSelectedIds, deleteExpense, clearSelection])
 
-  // --- Custom selection hook ---
-  const {
-    selected,
-    selectAll,
-    clearSelection,
-    handleCheckboxClick,
-    getContainerProps,
-    getRowProps,
-    marqueeActive,
-    marqueeRef,
-    subscribeLive,
-  } = useTableSelect(rowIds);
+  // Escape to deselect
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedCount > 0) {
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+        clearSelection()
+      }
+    }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [selectedCount, clearSelection])
 
-  // Stream live marquee selection to parent (updates summary, not table)
-  const onSelectionChangeRef = useRef(onSelectionChange);
-  useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
-  const expensesRef = useRef(expenses);
-  useEffect(() => { expensesRef.current = expenses; }, [expenses]);
+  // --- Marquee selection ---
+  const onMarqueeSelect = useCallback(
+    (ids: string[]) => {
+      if (!gridApi) return
+      gridApi.deselectAll()
+      gridApi.forEachNode((node) => {
+        if (node.data && ids.includes(node.data.id)) {
+          node.setSelected(true)
+        }
+      })
+    },
+    [gridApi]
+  )
+
+  const { getContainerProps, marqueeRef, subscribeLive } = useMarqueeSelect({
+    containerRef,
+    onMarqueeSelect,
+  })
+
+  // Stream live marquee selection to parent
+  const onSelectionChangeRef = useRef(onSelectionChange)
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange
+  }, [onSelectionChange])
 
   useEffect(() => {
     return subscribeLive((ids) => {
       if (onSelectionChangeRef.current) {
         onSelectionChangeRef.current(
           expensesRef.current.filter((e) => ids.has(e.id))
-        );
+        )
       }
-    });
-  }, [subscribeLive]);
+    })
+  }, [subscribeLive])
 
-  // Ref to selected — columns read this without memo invalidation
-  const selectedStateRef = useRef(selected);
-  useEffect(() => { selectedStateRef.current = selected; }, [selected]);
-
-  const [liveCount, setLiveCount] = useState(0);
-  useEffect(() => {
-    return subscribeLive((ids) => setLiveCount(ids.size));
-  }, [subscribeLive]);
-
-  const selectedCount = marqueeActive ? liveCount : selected.size;
-  const activeFilterCount = columnFilters.length;
-
-  // Columns with selection — selectedRef is stable, so this memo only
-  // invalidates on structural changes (members, buckets, editingCell), never on selection
-  const columnsWithSelection = useMemo(
-    () =>
-      getExpenseColumns({
-        members,
-        buckets,
-        grantMode,
-        onCellEdit,
-        editingCell,
-        setEditingCell,
-        selectedRef: selectedStateRef,
-        onSelectAll: selectAll,
-        onClearSelection: clearSelection,
-        onCheckboxClick: handleCheckboxClick,
-      }),
-    [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell, selectAll, clearSelection, handleCheckboxClick]
-  );
-
-  // Update table columns to include selection callbacks
-  table.setOptions((prev) => ({ ...prev, columns: columnsWithSelection }));
-
-  // Notify parent of selection changes
-  useEffect(() => {
-    if (onSelectionChange) {
-      const selectedExpenses = expenses.filter((e) => selected.has(e.id));
-      onSelectionChange(selectedExpenses);
-    }
-  }, [selected, expenses, onSelectionChange]);
-
-  // Escape to deselect
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedCount > 0) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        clearSelection();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [selectedCount, clearSelection]);
-
-  // Bulk edits: when user changes status/paidBy via popover on a selected row, apply to all selected
-  const handleBulkStatusChange = useCallback(
-    (status: string) => {
-      const selectedIds = Array.from(selected);
-      const batch = selectedIds
-        .map((id) => expenses.find((e) => e.id === id))
-        .filter(Boolean) as Expense[];
-      undoStack.pushBatch(
-        batch.map((e) => ({ expense: e, field: "status", oldValue: e.status }))
-      );
-      for (const id of selectedIds) {
-        updateExpense.mutate({ id, status } as Parameters<typeof updateExpense.mutate>[0]);
-      }
-      clearSelection();
-    },
-    [selected, updateExpense, expenses, undoStack, clearSelection]
-  );
-
-  const handleBulkDelete = useCallback(() => {
-    const selectedIds = Array.from(selected);
-    for (const id of selectedIds) {
-      deleteExpense.mutate(id);
-    }
-    clearSelection();
-  }, [selected, deleteExpense, clearSelection]);
+  // Row total calculation
+  const totalCents = useMemo(
+    () => expenses.reduce((sum, e) => sum + e.amountCents, 0),
+    [expenses]
+  )
 
   return (
     <div className="space-y-2">
-      {/* Clear filters bar */}
-      {activeFilterCount > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm">
-          <Filter className="size-3.5 text-primary" />
-          <span>
-            {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active
-            {rows.length !== expenses.length && (
-              <> &middot; showing {rows.length} of {expenses.length}</>
-            )}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-7"
-            onClick={() => setColumnFilters([])}
-          >
-            <X className="mr-1 size-3.5" />
-            Clear all filters
-          </Button>
-        </div>
-      )}
-
-      {/* Bulk actions toolbar — always mounted, hidden when empty to avoid layout shift */}
+      {/* Bulk actions toolbar */}
       <div
-        className="bg-muted flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-150"
+        className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm transition-all duration-150"
         style={{
           height: selectedCount > 0 ? "auto" : 0,
           padding: selectedCount > 0 ? undefined : 0,
@@ -258,170 +528,89 @@ export function ExpenseTable({
           opacity: selectedCount > 0 ? 1 : 0,
         }}
       >
-          <span className="font-medium">
-            {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
-          </span>
-          <div className="ml-2 flex items-center gap-1">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-7"
-              onClick={() => handleBulkStatusChange("paid")}
-            >
-              <ArrowRightLeft className="mr-1 size-3.5" />
-              Mark Paid
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-7"
-              onClick={() => handleBulkStatusChange("approved")}
-            >
-              Mark Approved
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-7"
-              onClick={() => handleBulkStatusChange("outstanding")}
-            >
-              Mark Outstanding
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-7"
-              onClick={handleBulkDelete}
-            >
-              <Trash2 className="mr-1 size-3.5" />
-              Delete
-            </Button>
-          </div>
+        <span className="font-medium">
+          {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
+        </span>
+        <div className="ml-2 flex items-center gap-1">
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
-            className="ml-auto h-7"
-            onClick={clearSelection}
+            className="h-7"
+            onClick={() => handleBulkStatusChange("paid")}
           >
-            <X className="mr-1 size-3.5" />
-            Deselect
+            <ArrowRightLeft className="mr-1 size-3.5" />
+            Mark Paid
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7"
+            onClick={() => handleBulkStatusChange("approved")}
+          >
+            Mark Approved
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7"
+            onClick={() => handleBulkStatusChange("outstanding")}
+          >
+            Mark Outstanding
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-7"
+            onClick={handleBulkDelete}
+          >
+            <Trash2 className="mr-1 size-3.5" />
+            Delete
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-7"
+          onClick={clearSelection}
+        >
+          <X className="mr-1 size-3.5" />
+          Deselect
+        </Button>
       </div>
 
       <div
-        className="overflow-auto rounded-lg border"
+        ref={containerRef}
         {...getContainerProps()}
         style={{
           ...getContainerProps().style,
-          maxHeight: "calc(100vh - 280px)",
+          height: "calc(100vh - 280px)",
+          minHeight: 300,
         }}
       >
-        <Table style={{ tableLayout: "fixed", width: Math.max(table.getTotalSize(), 100) + "px", minWidth: "100%" }}>
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="group/header"
-                    style={{
-                      width: header.getSize(),
-                      position: "relative",
-                    }}
-                  >
-                    <div className="flex items-center gap-1">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                      {header.column.getCanFilter() && (
-                        <ColumnFilter
-                          column={header.column}
-                          members={members}
-                          buckets={buckets}
-                        />
-                      )}
-                    </div>
-                    {header.column.getCanResize() && (
-                      <div
-                        onMouseDown={header.getResizeHandler()}
-                        onTouchStart={header.getResizeHandler()}
-                        className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50 ${
-                          header.column.getIsResizing()
-                            ? "bg-primary"
-                            : ""
-                        }`}
-                      />
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columnsWithSelection.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  {activeFilterCount > 0
-                    ? "No expenses match the current filters."
-                    : "No expenses yet. Click \"Add Expense\" to get started."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((row) => {
-                const rowProps = getRowProps(row.id);
-                return (
-                  <ExpenseContextMenu
-                    key={row.id}
-                    expense={row.original}
-                    members={members}
-                    onEdit={() => onOpenModal(row.original)}
-                    onDuplicate={() => {
-                      const { id: _id, createdAt: _ca, updatedAt: _ua, receiptCount: _rc, createdById: _cb, ...rest } = row.original;
-                      onOpenModal(rest as unknown as Expense);
-                    }}
-                    onStatusChange={(status) =>
-                      onCellEdit(row.original.id, "status", status)
-                    }
-                    onPaidByChange={(paidById) =>
-                      onCellEdit(row.original.id, "paidById", paidById)
-                    }
-                    onViewReceipts={() => onOpenReceipts(row.original)}
-                    onDelete={() => deleteExpense.mutate(row.original.id)}
-                  >
-                    <TableRow
-                      ref={rowProps.ref}
-                      onMouseDown={rowProps.onMouseDown}
-                      data-state={
-                        selected.has(row.id) ? "selected" : undefined
-                      }
-                      className="group"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          style={{ width: cell.column.getSize() }}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </ExpenseContextMenu>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+        <AgGridReact<Expense>
+          ref={gridRef}
+          theme={agTheme}
+          rowData={expenses}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          getRowId={(params) => params.data.id}
+          rowSelection="multiple"
+          suppressRowClickSelection={false}
+          onGridReady={onGridReady}
+          onCellValueChanged={onCellValueChanged}
+          onSelectionChanged={onSelectionChanged}
+          onCellContextMenu={onCellContextMenu}
+          stopEditingWhenCellsLoseFocus={true}
+          suppressContextMenu={true}
+          animateRows={false}
+          noRowsOverlayComponent={() => (
+            <div className="py-8 text-muted-foreground">
+              No expenses yet. Click "Add Expense" to get started.
+            </div>
+          )}
+        />
 
-        {/* Marquee selection rectangle — positioned via ref, not state */}
+        {/* Marquee selection rectangle */}
         <div
           ref={marqueeRef}
           className="pointer-events-none absolute border border-primary/60 bg-primary/10"
@@ -429,131 +618,186 @@ export function ExpenseTable({
         />
       </div>
 
+      {/* Context menu portal */}
+      {contextMenuExpense && contextMenuPos && (
+        <ContextMenuPortal
+          expense={contextMenuExpense}
+          members={members}
+          position={contextMenuPos}
+          onOpenModal={onOpenModal}
+          onOpenReceipts={onOpenReceipts}
+          onCellEdit={onCellEdit}
+          onDelete={() => deleteExpense.mutate(contextMenuExpense.id)}
+          onClose={() => {
+            setContextMenuExpense(null)
+            setContextMenuPos(null)
+          }}
+        />
+      )}
+
       <div className="flex items-center justify-between px-2 text-sm text-muted-foreground">
         <span>
-          {rows.length} expense{rows.length !== 1 ? "s" : ""}
-          {activeFilterCount > 0 && rows.length !== expenses.length
-            ? ` of ${expenses.length}`
-            : ""}
+          {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
         </span>
         <span className="font-medium text-foreground">
-          Total:{" "}
-          {formatCurrency(
-            rows.reduce((sum, r) => sum + r.original.amountCents, 0)
-          )}
+          Total: {formatCurrency(totalCents)}
         </span>
       </div>
     </div>
-  );
+  )
 }
 
-// Per-column filter popover
-function ColumnFilter({
-  column,
+// --- Context menu portal (replaces the wrapping approach) ---
+
+function ContextMenuPortal({
+  expense,
   members,
-  buckets,
+  position,
+  onOpenModal,
+  onOpenReceipts,
+  onCellEdit,
+  onDelete,
+  onClose,
 }: {
-  column: any;
-  members: EventMember[];
-  buckets: EventBucket[];
+  expense: Expense
+  members: EventMember[]
+  position: { x: number; y: number }
+  onOpenModal: (expense?: Expense) => void
+  onOpenReceipts: (expense: Expense) => void
+  onCellEdit: (expenseId: string, field: string, value: unknown) => void
+  onDelete: () => void
+  onClose: () => void
 }) {
-  const columnId = column.id;
-  const filterValue = column.getFilterValue();
-  const isActive = filterValue != null && (typeof filterValue === "string" ? filterValue.length > 0 : Array.isArray(filterValue) && filterValue.length > 0);
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  if (columnId === "name" || columnId === "notes" || columnId === "date") {
-    return (
-      <Popover>
-        <PopoverTrigger className="outline-none">
-          <Filter className={`size-3 ${isActive ? "text-primary" : "text-muted-foreground opacity-0 group-hover/header:opacity-100"} hover:text-foreground transition-opacity`} />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-56 p-2 gap-1">
-          <Input
-            placeholder={`Filter ${columnId}...`}
-            value={(filterValue as string) ?? ""}
-            onChange={(e) => column.setFilterValue(e.target.value || undefined)}
-            className="h-8 text-sm"
-            autoFocus
-          />
-          {isActive && (
-            <button
-              className="text-xs text-muted-foreground underline hover:text-foreground mt-1"
-              onClick={() => column.setFilterValue(undefined)}
-            >
-              Clear
-            </button>
-          )}
-        </PopoverContent>
-      </Popover>
-    );
-  }
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    // Delay to avoid the opening click from closing immediately
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handler)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("mousedown", handler)
+    }
+  }, [onClose])
 
-  let options: { value: string; label: string }[] = [];
-
-  if (columnId === "status") {
-    options = [
-      { value: "outstanding", label: "Outstanding" },
-      { value: "awaiting_approval", label: "Awaiting Approval" },
-      { value: "approved", label: "Approved" },
-      { value: "paid", label: "Paid" },
-      { value: "reimbursed", label: "Reimbursed" },
-    ];
-  } else if (columnId === "paidById") {
-    options = [
-      { value: "", label: "Unassigned" },
-      ...members.map((m) => ({ value: m.userId, label: m.userName })),
-    ];
-  } else if (columnId === "bucketId") {
-    options = [
-      { value: "", label: "No bucket" },
-      ...buckets.map((b) => ({ value: b.id, label: b.name })),
-    ];
-  } else if (columnId === "receiptCount") {
-    options = [
-      { value: "has", label: "Has receipts" },
-      { value: "missing", label: "Missing receipts" },
-    ];
-  } else {
-    return null;
-  }
-
-  const selected: string[] = (filterValue as string[]) ?? [];
-  const toggle = (val: string) => {
-    const next = selected.includes(val)
-      ? selected.filter((v) => v !== val)
-      : [...selected, val];
-    column.setFilterValue(next.length > 0 ? next : undefined);
-  };
+  const statuses: { value: ExpenseStatus; label: string }[] = [
+    { value: "outstanding", label: "Outstanding" },
+    { value: "awaiting_approval", label: "Awaiting Approval" },
+    { value: "approved", label: "Approved" },
+    { value: "paid", label: "Paid" },
+    { value: "reimbursed", label: "Reimbursed" },
+  ]
 
   return (
-    <Popover>
-      <PopoverTrigger className="outline-none">
-        <Filter className={`size-3 ${isActive ? "text-primary" : "text-muted-foreground opacity-0 group-hover/header:opacity-100"} hover:text-foreground transition-opacity`} />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-48 p-2 pr-0 gap-0">
-        <div className="space-y-1 max-h-[min(300px,calc(100vh-200px))] overflow-y-auto pr-2">
-          {options.map((opt) => (
-            <label
-              key={opt.value}
-              className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent"
-            >
-              <Checkbox
-                checked={selected.includes(opt.value)}
-                onCheckedChange={() => toggle(opt.value)}
-              />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-        {isActive && (
-          <button
-            className="text-xs text-muted-foreground underline hover:text-foreground mt-2"
-            onClick={() => column.setFilterValue(undefined)}
-          >
-            Clear
-          </button>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[200px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      style={{ left: position.x, top: position.y }}
+    >
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          onOpenModal(expense)
+          onClose()
+        }}
+      >
+        Edit
+      </button>
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const {
+            id,
+            createdAt,
+            updatedAt,
+            receiptCount,
+            createdById,
+            ...rest
+          } = expense
+          onOpenModal(rest as unknown as Expense)
+          onClose()
+        }}
+      >
+        Duplicate
+      </button>
+      <div className="my-1 h-px bg-border" />
+      <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+        Change Status
+      </div>
+      {statuses.map((s) => (
+        <button
+          key={s.value}
+          className={`flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${expense.status === s.value ? "font-semibold" : ""}`}
+          onClick={() => {
+            onCellEdit(expense.id, "status", s.value)
+            onClose()
+          }}
+        >
+          {s.label}
+          {expense.status === s.value && (
+            <span className="ml-auto text-xs text-muted-foreground">
+              current
+            </span>
+          )}
+        </button>
+      ))}
+      <div className="my-1 h-px bg-border" />
+      <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+        Change Paid By
+      </div>
+      <button
+        className={`flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${!expense.paidById ? "font-semibold" : ""}`}
+        onClick={() => {
+          onCellEdit(expense.id, "paidById", null)
+          onClose()
+        }}
+      >
+        Unassigned
+      </button>
+      {members.map((m) => (
+        <button
+          key={m.userId}
+          className={`flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${expense.paidById === m.userId ? "font-semibold" : ""}`}
+          onClick={() => {
+            onCellEdit(expense.id, "paidById", m.userId)
+            onClose()
+          }}
+        >
+          {m.userName}
+          {expense.paidById === m.userId && (
+            <span className="ml-auto text-xs text-muted-foreground">
+              current
+            </span>
+          )}
+        </button>
+      ))}
+      <div className="my-1 h-px bg-border" />
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          onOpenReceipts(expense)
+          onClose()
+        }}
+      >
+        View Receipts ({expense.receiptCount})
+      </button>
+      <div className="my-1 h-px bg-border" />
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+        onClick={() => {
+          onDelete()
+          onClose()
+        }}
+      >
+        Delete
+      </button>
+    </div>
+  )
 }

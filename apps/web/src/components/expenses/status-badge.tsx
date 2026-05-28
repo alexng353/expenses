@@ -1,6 +1,6 @@
-import { Badge } from "@workspace/ui/components/badge";
-import type { ExpenseStatus } from "../../lib/types";
-import { statusLabel } from "../../lib/format";
+import { Badge } from "@workspace/ui/components/badge"
+import type { ExpenseStatus } from "../../lib/types"
+import { statusLabel } from "../../lib/format"
 
 const STATUS_STYLES: Record<ExpenseStatus, string> = {
   outstanding:
@@ -12,11 +12,11 @@ const STATUS_STYLES: Record<ExpenseStatus, string> = {
     "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900",
   awaiting_approval:
     "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-900",
-};
+}
 
 interface StatusBadgeProps {
-  status: ExpenseStatus;
-  className?: string;
+  status: ExpenseStatus
+  className?: string
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
@@ -27,5 +27,5 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     >
       {statusLabel(status)}
     </Badge>
-  );
+  )
 }

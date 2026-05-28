@@ -1,10 +1,10 @@
-import { Routes, Route, Navigate } from "react-router";
-import { ProtectedRoute } from "./components/layout/protected-route";
-import { EventProvider } from "./hooks/use-event";
-import LoginPage from "./pages/login";
-import RegisterPage from "./pages/register";
-import VerifyEmailPage from "./pages/verify-email";
-import DashboardPage from "./pages/dashboard";
+import { Routes, Route, Navigate } from "react-router"
+import { ProtectedRoute } from "./components/layout/protected-route"
+import { EventProvider } from "./hooks/use-event"
+import LoginPage from "./pages/login"
+import RegisterPage from "./pages/register"
+import VerifyEmailPage from "./pages/verify-email"
+import DashboardPage from "./pages/dashboard"
 
 export default function App() {
   return (
@@ -24,5 +24,5 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
+  )
 }

@@ -1,11 +1,11 @@
-import type { ReactNode } from "react";
-import { useAuth } from "../../hooks/use-auth";
-import { useEvent } from "../../hooks/use-event";
-import { Button, buttonVariants } from "@workspace/ui/components/button";
+import type { ReactNode } from "react"
+import { useAuth } from "../../hooks/use-auth"
+import { useEvent } from "../../hooks/use-event"
+import { Button, buttonVariants } from "@workspace/ui/components/button"
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
-  const { events, currentEvent, setCurrentEventId } = useEvent();
+  const { user, logout } = useAuth()
+  const { events, currentEvent, setCurrentEventId } = useEvent()
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -15,7 +15,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <select
             value={currentEvent?.id ?? ""}
             onChange={(e) => setCurrentEventId(e.target.value)}
-            className="border-input bg-background rounded-md border px-2 py-1 text-sm"
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
           >
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>
@@ -25,9 +25,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-muted-foreground text-sm">{user?.name}</span>
+          <span className="text-sm text-muted-foreground">{user?.name}</span>
           {user?.isSuper && (
-            <a href="/admin" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <a
+              href="/admin"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
               Admin
             </a>
           )}
@@ -38,5 +41,5 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       <main className="flex-1">{children}</main>
     </div>
-  );
+  )
 }

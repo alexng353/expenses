@@ -1,15 +1,15 @@
-import { useId } from "react";
-import { Input } from "@workspace/ui/components/input";
+import { useId } from "react"
+import { Input } from "@workspace/ui/components/input"
 
 interface AutocompleteInputProps {
-  value: string;
-  onChange: (value: string) => void;
-  suggestions: string[];
-  placeholder?: string;
-  className?: string;
-  autoFocus?: boolean;
-  onBlur?: () => void;
-  onKeyDown?: (e: React.KeyboardEvent) => void;
+  value: string
+  onChange: (value: string) => void
+  suggestions: string[]
+  placeholder?: string
+  className?: string
+  autoFocus?: boolean
+  onBlur?: () => void
+  onKeyDown?: (e: React.KeyboardEvent) => void
 }
 
 export function AutocompleteInput({
@@ -22,7 +22,7 @@ export function AutocompleteInput({
   onBlur,
   onKeyDown,
 }: AutocompleteInputProps) {
-  const listId = useId();
+  const listId = useId()
 
   return (
     <>
@@ -43,5 +43,5 @@ export function AutocompleteInput({
         ))}
       </datalist>
     </>
-  );
+  )
 }

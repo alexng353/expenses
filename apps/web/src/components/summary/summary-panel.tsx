@@ -1,35 +1,52 @@
-import { useMemo } from "react";
-import { useExpenseSummary } from "../../hooks/use-expenses";
-import { formatCurrency } from "../../lib/format";
-import { Separator } from "@workspace/ui/components/separator";
-import type { Expense, EventBucket } from "../../lib/types";
+import { useMemo } from "react"
+import { useExpenseSummary } from "../../hooks/use-expenses"
+import { formatCurrency } from "../../lib/format"
+import { Separator } from "@workspace/ui/components/separator"
+import type { Expense, EventBucket } from "../../lib/types"
 
 interface SummaryPanelProps {
-  selectedExpenses?: Expense[];
-  buckets?: EventBucket[];
+  selectedExpenses?: Expense[]
+  buckets?: EventBucket[]
 }
 
-export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPanelProps) {
-  const { data: summary, isLoading } = useExpenseSummary();
+export function SummaryPanel({
+  selectedExpenses = [],
+  buckets = [],
+}: SummaryPanelProps) {
+  const { data: summary, isLoading } = useExpenseSummary()
 
   // Compute selected breakdown
   const selectedSummary = useMemo(() => {
-    if (selectedExpenses.length === 0) return null;
-    const totalCents = selectedExpenses.reduce((sum, e) => sum + e.amountCents, 0);
-    const byBucket = new Map<string | null, { name: string; totalCents: number; count: number }>();
+    if (selectedExpenses.length === 0) return null
+    const totalCents = selectedExpenses.reduce(
+      (sum, e) => sum + e.amountCents,
+      0
+    )
+    const byBucket = new Map<
+      string | null,
+      { name: string; totalCents: number; count: number }
+    >()
     for (const e of selectedExpenses) {
-      const key = e.bucketId;
-      const existing = byBucket.get(key);
-      const bucketName = buckets.find((b) => b.id === key)?.name ?? "No bucket";
+      const key = e.bucketId
+      const existing = byBucket.get(key)
+      const bucketName = buckets.find((b) => b.id === key)?.name ?? "No bucket"
       if (existing) {
-        existing.totalCents += e.amountCents;
-        existing.count += 1;
+        existing.totalCents += e.amountCents
+        existing.count += 1
       } else {
-        byBucket.set(key, { name: bucketName, totalCents: e.amountCents, count: 1 });
+        byBucket.set(key, {
+          name: bucketName,
+          totalCents: e.amountCents,
+          count: 1,
+        })
       }
     }
-    return { totalCents, count: selectedExpenses.length, byBucket: Array.from(byBucket.entries()) };
-  }, [selectedExpenses, buckets]);
+    return {
+      totalCents,
+      count: selectedExpenses.length,
+      byBucket: Array.from(byBucket.entries()),
+    }
+  }, [selectedExpenses, buckets])
 
   if (isLoading) {
     return (
@@ -41,10 +58,10 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
           <div className="h-3 w-3/4 rounded bg-muted" />
         </div>
       </div>
-    );
+    )
   }
 
-  if (!summary) return null;
+  if (!summary) return null
 
   return (
     <div className="space-y-4">
@@ -64,14 +81,16 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
                 <span className="truncate text-muted-foreground">
                   {data.name}
                 </span>
-                <span className="ml-2 shrink-0 tabular-nums font-medium">
+                <span className="ml-2 shrink-0 font-medium tabular-nums">
                   {formatCurrency(data.totalCents)}
                 </span>
               </div>
             ))}
           </div>
 
-          {selectedSummary.byBucket.length > 0 && <Separator className="my-3" />}
+          {selectedSummary.byBucket.length > 0 && (
+            <Separator className="my-3" />
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold">Selected Total</span>
@@ -81,10 +100,14 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
           </div>
 
           <div className="mt-1 text-right text-xs text-muted-foreground">
-            {formatCurrency(selectedSummary.totalCents)} / {formatCurrency(summary.totalCents)}{" "}
-            ({summary.totalCents > 0
-              ? Math.round((selectedSummary.totalCents / summary.totalCents) * 100)
-              : 0}%)
+            {formatCurrency(selectedSummary.totalCents)} /{" "}
+            {formatCurrency(summary.totalCents)} (
+            {summary.totalCents > 0
+              ? Math.round(
+                  (selectedSummary.totalCents / summary.totalCents) * 100
+                )
+              : 0}
+            %)
           </div>
         </div>
       )}
@@ -102,7 +125,7 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
               <span className="truncate text-muted-foreground">
                 {bucket.bucketName}
               </span>
-              <span className="ml-2 shrink-0 tabular-nums font-medium">
+              <span className="ml-2 shrink-0 font-medium tabular-nums">
                 {formatCurrency(bucket.totalCents)}
               </span>
             </div>
@@ -135,7 +158,7 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
                   key={status}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span className="capitalize text-muted-foreground">
+                  <span className="text-muted-foreground capitalize">
                     {status.replace(/_/g, " ")}
                   </span>
                   <span className="tabular-nums">
@@ -151,5 +174,5 @@ export function SummaryPanel({ selectedExpenses = [], buckets = [] }: SummaryPan
         )}
       </div>
     </div>
-  );
+  )
 }

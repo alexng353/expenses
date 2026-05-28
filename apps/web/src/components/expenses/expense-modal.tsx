@@ -1,80 +1,83 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@workspace/ui/components/dialog";
-import { Button } from "@workspace/ui/components/button";
-import { Input } from "@workspace/ui/components/input";
-import { Label } from "@workspace/ui/components/label";
-import { Textarea } from "@workspace/ui/components/textarea";
-import { CurrencyInput } from "../shared/currency-input";
-import { AutocompleteInput } from "../shared/autocomplete-input";
+} from "@workspace/ui/components/dialog"
+import { Button } from "@workspace/ui/components/button"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import { Textarea } from "@workspace/ui/components/textarea"
+import { CurrencyInput } from "../shared/currency-input"
+import { AutocompleteInput } from "../shared/autocomplete-input"
 import type {
   Expense,
   EventMember,
   EventBucket,
   GrantCategory,
   ExpenseStatus,
-} from "../../lib/types";
+} from "../../lib/types"
 import {
   useCreateExpense,
   useUpdateExpense,
   useUploadReceipt,
   usePlaceAutocomplete,
-} from "../../hooks/use-expenses";
+} from "../../hooks/use-expenses"
 
 interface ExpenseModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  expense?: Expense | null;
-  members: EventMember[];
-  buckets: EventBucket[];
-  grantCategories: GrantCategory[];
-  grantMode: boolean;
-  currentUserId?: string;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  expense?: Expense | null
+  members: EventMember[]
+  buckets: EventBucket[]
+  grantCategories: GrantCategory[]
+  grantMode: boolean
+  currentUserId?: string
 }
 
 interface FormState {
-  name: string;
-  amountCents: number | null;
-  date: string;
-  placeOfPurchase: string;
-  status: ExpenseStatus;
-  bucketId: string;
-  paidById: string;
-  notes: string;
-  grantCategoryId: string;
-  grantSubLabel: string;
+  name: string
+  amountCents: number | null
+  date: string
+  placeOfPurchase: string
+  status: ExpenseStatus
+  bucketId: string
+  paidById: string
+  notes: string
+  grantCategoryId: string
+  grantSubLabel: string
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10)
 }
 
 function dateRelativeLabel(dateStr: string): string {
-  if (!dateStr) return "";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const d = new Date(dateStr + "T00:00:00");
-  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
-  if (diff === 0) return "today";
-  if (diff === -1) return "yesterday";
-  if (diff === 1) return "tomorrow";
-  return "";
+  if (!dateStr) return ""
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const d = new Date(dateStr + "T00:00:00")
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000)
+  if (diff === 0) return "today"
+  if (diff === -1) return "yesterday"
+  if (diff === 1) return "tomorrow"
+  return ""
 }
 
 function formatDateDisplay(dateStr: string): string {
-  if (!dateStr) return "";
-  const [y, m, d] = dateStr.split("-");
-  const formatted = `${d}/${m}/${y!.slice(2)}`;
-  const rel = dateRelativeLabel(dateStr);
-  return rel ? `${formatted} (${rel})` : formatted;
+  if (!dateStr) return ""
+  const [y, m, d] = dateStr.split("-")
+  const formatted = `${d}/${m}/${y!.slice(2)}`
+  const rel = dateRelativeLabel(dateStr)
+  return rel ? `${formatted} (${rel})` : formatted
 }
 
-function getInitialState(expense?: Expense | null, currentUserId?: string): FormState {
+function getInitialState(
+  expense?: Expense | null,
+  currentUserId?: string
+): FormState {
   return {
     name: expense?.name ?? "",
     amountCents: expense?.amountCents ?? null,
@@ -86,7 +89,7 @@ function getInitialState(expense?: Expense | null, currentUserId?: string): Form
     notes: expense?.notes ?? "",
     grantCategoryId: expense?.grantCategoryId ?? "",
     grantSubLabel: expense?.grantSubLabel ?? "",
-  };
+  }
 }
 
 export function ExpenseModal({
@@ -99,51 +102,53 @@ export function ExpenseModal({
   grantMode,
   currentUserId,
 }: ExpenseModalProps) {
-  const [form, setForm] = useState<FormState>(() => getInitialState(expense, currentUserId));
-  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
-  const [error, setError] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<FormState>(() =>
+    getInitialState(expense, currentUserId)
+  )
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([])
+  const [error, setError] = useState("")
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const createExpense = useCreateExpense();
-  const updateExpense = useUpdateExpense();
-  const uploadReceipt = useUploadReceipt();
-  const { data: placeSuggestions = [] } = usePlaceAutocomplete();
+  const createExpense = useCreateExpense()
+  const updateExpense = useUpdateExpense()
+  const uploadReceipt = useUploadReceipt()
+  const { data: placeSuggestions = [] } = usePlaceAutocomplete()
 
-  const isEditing = !!expense?.id;
+  const isEditing = !!expense?.id
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
-        setForm(getInitialState(expense, currentUserId));
-        setReceiptFiles([]);
-        setError("");
-        setIsDragging(false);
+        setForm(getInitialState(expense, currentUserId))
+        setReceiptFiles([])
+        setError("")
+        setIsDragging(false)
       }
-      onOpenChange(nextOpen);
+      onOpenChange(nextOpen)
     },
     [expense, onOpenChange]
-  );
+  )
 
   const setField = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
-      setForm((prev) => ({ ...prev, [key]: value }));
+      setForm((prev) => ({ ...prev, [key]: value }))
     },
     []
-  );
+  )
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
-      e.preventDefault();
-      setError("");
+      e.preventDefault()
+      setError("")
 
       if (!form.name.trim()) {
-        setError("Name is required");
-        return;
+        setError("Name is required")
+        return
       }
       if (form.amountCents == null || form.amountCents <= 0) {
-        setError("Amount must be greater than 0");
-        return;
+        setError("Amount must be greater than 0")
+        return
       }
 
       const payload = {
@@ -157,30 +162,28 @@ export function ExpenseModal({
         notes: form.notes || null,
         grantCategoryId: form.grantCategoryId || null,
         grantSubLabel: form.grantSubLabel || null,
-      };
+      }
 
       try {
         if (isEditing) {
           await updateExpense.mutateAsync({
             id: expense.id,
             ...payload,
-          });
+          })
         } else {
-          const created = await createExpense.mutateAsync(payload);
+          const created = await createExpense.mutateAsync(payload)
 
           for (const file of receiptFiles) {
             await uploadReceipt.mutateAsync({
               expenseId: created.id,
               file,
-            });
+            })
           }
         }
 
-        onOpenChange(false);
+        onOpenChange(false)
       } catch (err: unknown) {
-        setError(
-          err instanceof Error ? err.message : "Failed to save expense"
-        );
+        setError(err instanceof Error ? err.message : "Failed to save expense")
       }
     },
     [
@@ -193,37 +196,37 @@ export function ExpenseModal({
       receiptFiles,
       onOpenChange,
     ]
-  );
+  )
 
   const addFiles = useCallback((files: FileList | File[]) => {
-    setReceiptFiles((prev) => [...prev, ...Array.from(files)]);
-  }, []);
+    setReceiptFiles((prev) => [...prev, ...Array.from(files)])
+  }, [])
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) addFiles(e.target.files);
+      if (e.target.files) addFiles(e.target.files)
     },
     [addFiles]
-  );
+  )
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+      e.preventDefault()
+      setIsDragging(false)
+      if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files)
     },
     [addFiles]
-  );
+  )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -275,7 +278,7 @@ export function ExpenseModal({
               <Label htmlFor="expense-date">
                 Date
                 {form.date && (
-                  <span className="text-muted-foreground font-normal">
+                  <span className="font-normal text-muted-foreground">
                     {" "}
                     {formatDateDisplay(form.date)}
                   </span>
@@ -300,7 +303,7 @@ export function ExpenseModal({
                 onChange={(e) =>
                   setField("status", e.target.value as ExpenseStatus)
                 }
-                className="border-input bg-background h-9 w-full appearance-none rounded-lg border px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
               >
                 <option value="outstanding">Outstanding</option>
                 <option value="awaiting_approval">Awaiting Approval</option>
@@ -315,7 +318,7 @@ export function ExpenseModal({
                 id="expense-paid-by"
                 value={form.paidById}
                 onChange={(e) => setField("paidById", e.target.value)}
-                className="border-input bg-background h-9 w-full appearance-none rounded-lg border px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
               >
                 <option value="">Unassigned</option>
                 {members.map((m) => (
@@ -334,13 +337,13 @@ export function ExpenseModal({
               id="expense-bucket"
               value={form.bucketId}
               onChange={(e) => {
-                const id = e.target.value;
-                setField("bucketId", id);
-                const bucket = buckets.find((b) => b.id === id);
-                if (bucket) setField("grantSubLabel", bucket.name.toUpperCase());
-                else setField("grantSubLabel", "");
+                const id = e.target.value
+                setField("bucketId", id)
+                const bucket = buckets.find((b) => b.id === id)
+                if (bucket) setField("grantSubLabel", bucket.name.toUpperCase())
+                else setField("grantSubLabel", "")
               }}
-              className="border-input bg-background h-9 w-full appearance-none rounded-lg border px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+              className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
             >
               <option value="">No bucket</option>
               {buckets.map((b) => (
@@ -370,10 +373,8 @@ export function ExpenseModal({
               <select
                 id="expense-grant-cat"
                 value={form.grantCategoryId}
-                onChange={(e) =>
-                  setField("grantCategoryId", e.target.value)
-                }
-                className="border-input bg-background h-9 w-full appearance-none rounded-lg border px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+                onChange={(e) => setField("grantCategoryId", e.target.value)}
+                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
               >
                 <option value="">None</option>
                 {grantCategories.map((gc) => (
@@ -395,8 +396,8 @@ export function ExpenseModal({
                 onClick={() => fileInputRef.current?.click()}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    fileInputRef.current?.click();
+                    e.preventDefault()
+                    fileInputRef.current?.click()
                   }
                 }}
                 onDrop={handleDrop}
@@ -433,10 +434,10 @@ export function ExpenseModal({
                           type="button"
                           className="ml-2 text-destructive hover:underline"
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e.stopPropagation()
                             setReceiptFiles((prev) =>
                               prev.filter((_, j) => j !== i)
-                            );
+                            )
                           }}
                         >
                           Remove
@@ -473,5 +474,5 @@ export function ExpenseModal({
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

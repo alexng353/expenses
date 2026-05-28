@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.14",
-    "@tanstack/react-table": "^8.21.3",
-    "@tanstack/react-virtual": "^3.13.26",
     "@workspace/ui": "workspace:*",
     "ag-grid-community": "^35.3.0",
     "ag-grid-react": "^35.3.0",

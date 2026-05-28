@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api"
 
 export async function api<T>(
   path: string,
@@ -11,14 +11,14 @@ export async function api<T>(
       ...options.headers,
     },
     ...options,
-  });
+  })
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError(res.status, body.error ?? "Request failed");
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new ApiError(res.status, body.error ?? "Request failed")
   }
 
-  return res.json();
+  return res.json()
 }
 
 export async function apiUpload<T>(
@@ -29,21 +29,21 @@ export async function apiUpload<T>(
     method: "POST",
     credentials: "include",
     body: formData,
-  });
+  })
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError(res.status, body.error ?? "Upload failed");
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new ApiError(res.status, body.error ?? "Upload failed")
   }
 
-  return res.json();
+  return res.json()
 }
 
 export class ApiError extends Error {
-  status: number;
+  status: number
 
   constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
+    super(message)
+    this.status = status
   }
 }

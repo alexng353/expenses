@@ -1,32 +1,32 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
-import { api } from "../lib/api";
-import { Button } from "@workspace/ui/components/button";
+import { useState, useEffect } from "react"
+import { useParams, useNavigate } from "react-router"
+import { api } from "../lib/api"
+import { Button } from "@workspace/ui/components/button"
 
 export default function RegisterPage() {
-  const { inviteToken } = useParams<{ inviteToken: string }>();
-  const navigate = useNavigate();
+  const { inviteToken } = useParams<{ inviteToken: string }>()
+  const navigate = useNavigate()
   const [inviteInfo, setInviteInfo] = useState<{
-    defaultRole: string;
-    allowedEmailDomains: string[] | null;
-  } | null>(null);
-  const [inviteError, setInviteError] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+    defaultRole: string
+    allowedEmailDomains: string[] | null
+  } | null>(null)
+  const [inviteError, setInviteError] = useState("")
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!inviteToken) return;
+    if (!inviteToken) return
     api<{ defaultRole: string; allowedEmailDomains: string[] | null }>(
       `/auth/invite/${inviteToken}`
     )
       .then(setInviteInfo)
       .catch((err: unknown) =>
         setInviteError(err instanceof Error ? err.message : "Invalid invite")
-      );
-  }, [inviteToken]);
+      )
+  }, [inviteToken])
 
   if (inviteError) {
     return (
@@ -39,29 +39,27 @@ export default function RegisterPage() {
           </Button>
         </div>
       </div>
-    );
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+    e.preventDefault()
+    setError("")
+    setLoading(true)
     try {
       await api("/auth/register", {
         method: "POST",
         body: JSON.stringify({ inviteToken, name, email, password }),
-      });
-      navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+      })
+      navigate(`/verify-email?email=${encodeURIComponent(email)}`)
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Registration failed"
-      );
+      setError(err instanceof Error ? err.message : "Registration failed")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api";
+  const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8888/api"
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -69,7 +67,7 @@ export default function RegisterPage() {
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">Create Account</h1>
           {inviteInfo && (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               You'll join as: {inviteInfo.defaultRole}
               {inviteInfo.allowedEmailDomains && (
                 <>
@@ -89,7 +87,7 @@ export default function RegisterPage() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               required
             />
           </div>
@@ -99,7 +97,7 @@ export default function RegisterPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               required
             />
           </div>
@@ -109,13 +107,13 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               minLength={8}
               required
             />
           </div>
 
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Creating account..." : "Create Account"}
@@ -127,7 +125,7 @@ export default function RegisterPage() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background text-muted-foreground px-2">Or</span>
+            <span className="bg-background px-2 text-muted-foreground">Or</span>
           </div>
         </div>
 
@@ -135,13 +133,13 @@ export default function RegisterPage() {
           variant="outline"
           className="w-full"
           onClick={() => {
-            window.location.href = `${API_BASE}/auth/google?inviteToken=${inviteToken}`;
+            window.location.href = `${API_BASE}/auth/google?inviteToken=${inviteToken}`
           }}
         >
           Sign up with Google
         </Button>
 
-        <p className="text-muted-foreground text-center text-sm">
+        <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <a href="/login" className="underline">
             Sign in
@@ -149,5 +147,5 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
-  );
+  )
 }
