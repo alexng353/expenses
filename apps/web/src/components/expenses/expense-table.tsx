@@ -535,17 +535,9 @@ export function ExpenseTable({
 
   return (
     <div className="space-y-2">
-      {/* Bulk actions toolbar */}
-      <div
-        className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm transition-all duration-150"
-        style={{
-          height: selectedCount > 0 ? "auto" : 0,
-          padding: selectedCount > 0 ? undefined : 0,
-          overflow: "hidden",
-          opacity: selectedCount > 0 ? 1 : 0,
-        }}
-      >
-        <span className="font-medium">
+      {/* Bulk actions toolbar — always visible */}
+      <div className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-sm">
+        <span className={`font-medium ${selectedCount === 0 ? "text-muted-foreground" : ""}`}>
           {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
         </span>
         <div className="ml-2 flex items-center gap-1">
@@ -553,6 +545,7 @@ export function ExpenseTable({
             variant="secondary"
             size="sm"
             className="h-7"
+            disabled={selectedCount === 0}
             onClick={() => handleBulkStatusChange("paid")}
           >
             <ArrowRightLeft className="mr-1 size-3.5" />
@@ -562,6 +555,7 @@ export function ExpenseTable({
             variant="secondary"
             size="sm"
             className="h-7"
+            disabled={selectedCount === 0}
             onClick={() => handleBulkStatusChange("approved")}
           >
             Mark Approved
@@ -570,6 +564,7 @@ export function ExpenseTable({
             variant="secondary"
             size="sm"
             className="h-7"
+            disabled={selectedCount === 0}
             onClick={() => handleBulkStatusChange("outstanding")}
           >
             Mark Outstanding
@@ -578,6 +573,7 @@ export function ExpenseTable({
             variant="destructive"
             size="sm"
             className="h-7"
+            disabled={selectedCount === 0}
             onClick={handleBulkDelete}
           >
             <Trash2 className="mr-1 size-3.5" />
@@ -588,6 +584,7 @@ export function ExpenseTable({
           variant="ghost"
           size="sm"
           className="ml-auto h-7"
+          disabled={selectedCount === 0}
           onClick={clearSelection}
         >
           <X className="mr-1 size-3.5" />
