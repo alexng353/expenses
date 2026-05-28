@@ -37,7 +37,7 @@ const agTheme = themeQuartz.withParams({
   headerTextColor: "var(--foreground)",
   borderColor: "var(--border)",
   rowHoverColor: "var(--accent)",
-  selectedRowBackgroundColor: "hsl(var(--primary) / 0.08)",
+  selectedRowBackgroundColor: "color-mix(in oklch, var(--primary) 15%, var(--background))",
   oddRowBackgroundColor: "var(--background)",
   headerFontSize: 13,
   fontSize: 13,
