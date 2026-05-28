@@ -27,6 +27,45 @@ export function useAllUsers() {
   })
 }
 
+export function useCreateUser() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: { email: string; name: string; isSuper?: boolean }) =>
+      api<Pick<AdminUser, "id" | "email" | "name" | "isSuper">>("/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
+export function useArchiveUser() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      api(`/users/${userId}/archive`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
+export function useUnarchiveUser() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      api(`/users/${userId}/unarchive`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] })
+    },
+  })
+}
+
 export function useUpdateEvent() {
   const qc = useQueryClient()
   const { currentEvent } = useEvent()
@@ -82,6 +121,24 @@ export function useDeleteBucket() {
   })
 }
 
+export function useRenameBucket() {
+  const qc = useQueryClient()
+  const { currentEvent } = useEvent()
+
+  return useMutation({
+    mutationFn: ({ bucketId, name }: { bucketId: string; name: string }) =>
+      api<EventBucket>(`/events/${currentEvent!.id}/buckets/${bucketId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["events", currentEvent!.id, "buckets"],
+      })
+    },
+  })
+}
+
 export function useCreateGrantCategory() {
   const qc = useQueryClient()
   const { currentEvent } = useEvent()
@@ -109,6 +166,33 @@ export function useDeleteGrantCategory() {
       api(`/events/${currentEvent!.id}/grant-categories/${categoryId}`, {
         method: "DELETE",
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: ["events", currentEvent!.id, "grant-categories"],
+      })
+    },
+  })
+}
+
+export function useRenameGrantCategory() {
+  const qc = useQueryClient()
+  const { currentEvent } = useEvent()
+
+  return useMutation({
+    mutationFn: ({
+      categoryId,
+      name,
+    }: {
+      categoryId: string
+      name: string
+    }) =>
+      api<GrantCategory>(
+        `/events/${currentEvent!.id}/grant-categories/${categoryId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ name }),
+        }
+      ),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: ["events", currentEvent!.id, "grant-categories"],

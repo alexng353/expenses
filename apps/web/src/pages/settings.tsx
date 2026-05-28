@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router"
 import { AppShell } from "../components/layout/app-shell"
 import { useAuth } from "../hooks/use-auth"
@@ -7,12 +7,13 @@ import {
   useUpdateEvent,
   useCreateBucket,
   useDeleteBucket,
+  useRenameBucket,
   useCreateGrantCategory,
   useDeleteGrantCategory,
+  useRenameGrantCategory,
   useAddMember,
   useUpdateMember,
   useRemoveMember,
-  useCreateEvent,
   useAllUsers,
 } from "../hooks/use-event-mutations"
 import { Button } from "@workspace/ui/components/button"
@@ -51,6 +52,89 @@ function Section({
       </div>
       {children}
     </section>
+  )
+}
+
+function EditableRow({
+  name,
+  deleteLabel,
+  onRename,
+  onDelete,
+  deleting,
+}: {
+  name: string
+  deleteLabel: string
+  onRename: (name: string) => Promise<unknown> | void
+  onDelete: () => void
+  deleting: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const startEditing = () => {
+    setValue(name)
+    setEditing(true)
+  }
+
+  const commit = async () => {
+    const trimmed = value.trim()
+    setEditing(false)
+    if (trimmed && trimmed !== name) {
+      await onRename(trimmed)
+    }
+  }
+
+  const cancel = () => {
+    setValue(name)
+    setEditing(false)
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm">
+      {editing ? (
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              commit()
+            } else if (e.key === "Escape") {
+              e.preventDefault()
+              cancel()
+            }
+          }}
+          className="mr-2 h-7"
+        />
+      ) : (
+        <button
+          type="button"
+          className="-mx-1 flex-1 cursor-text rounded px-1 text-left hover:bg-muted/50"
+          onClick={startEditing}
+        >
+          {name}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label={deleteLabel}
+        className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+        disabled={deleting}
+        onClick={onDelete}
+      >
+        <X className="size-4" />
+      </button>
+    </div>
   )
 }
 
@@ -157,6 +241,7 @@ function BucketsSection() {
   const { buckets } = useEvent()
   const createBucket = useCreateBucket()
   const deleteBucket = useDeleteBucket()
+  const renameBucket = useRenameBucket()
   const [name, setName] = useState("")
 
   const handleAdd = async () => {
@@ -175,21 +260,16 @@ function BucketsSection() {
           <p className="text-sm text-muted-foreground">No buckets yet.</p>
         )}
         {buckets.map((bucket) => (
-          <div
+          <EditableRow
             key={bucket.id}
-            className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm"
-          >
-            <span>{bucket.name}</span>
-            <button
-              type="button"
-              aria-label={`Delete bucket ${bucket.name}`}
-              className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-              disabled={deleteBucket.isPending}
-              onClick={() => deleteBucket.mutate(bucket.id)}
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+            name={bucket.name}
+            deleteLabel={`Delete bucket ${bucket.name}`}
+            deleting={deleteBucket.isPending}
+            onRename={(newName) =>
+              renameBucket.mutateAsync({ bucketId: bucket.id, name: newName })
+            }
+            onDelete={() => deleteBucket.mutate(bucket.id)}
+          />
         ))}
       </div>
 
@@ -221,6 +301,7 @@ function GrantCategoriesSection() {
   const { grantCategories } = useEvent()
   const createCategory = useCreateGrantCategory()
   const deleteCategory = useDeleteGrantCategory()
+  const renameCategory = useRenameGrantCategory()
   const [name, setName] = useState("")
 
   const handleAdd = async () => {
@@ -239,21 +320,19 @@ function GrantCategoriesSection() {
           <p className="text-sm text-muted-foreground">No categories yet.</p>
         )}
         {grantCategories.map((category) => (
-          <div
+          <EditableRow
             key={category.id}
-            className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm"
-          >
-            <span>{category.name}</span>
-            <button
-              type="button"
-              aria-label={`Delete category ${category.name}`}
-              className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-              disabled={deleteCategory.isPending}
-              onClick={() => deleteCategory.mutate(category.id)}
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+            name={category.name}
+            deleteLabel={`Delete category ${category.name}`}
+            deleting={deleteCategory.isPending}
+            onRename={(newName) =>
+              renameCategory.mutateAsync({
+                categoryId: category.id,
+                name: newName,
+              })
+            }
+            onDelete={() => deleteCategory.mutate(category.id)}
+          />
         ))}
       </div>
 
@@ -391,69 +470,6 @@ function MembersSection() {
   )
 }
 
-function CreateEventSection() {
-  const { setCurrentEventId } = useEvent()
-  const createEvent = useCreateEvent()
-  const [name, setName] = useState("")
-  const [grantMode, setGrantMode] = useState(false)
-  const [error, setError] = useState("")
-
-  const handleCreate = async () => {
-    setError("")
-    if (!name.trim()) {
-      setError("Name is required")
-      return
-    }
-    try {
-      const event = await createEvent.mutateAsync({
-        name: name.trim(),
-        grantMode,
-      })
-      setCurrentEventId(event.id)
-      setName("")
-      setGrantMode(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create event")
-    }
-  }
-
-  return (
-    <Section
-      title="Create new event"
-      description="Creates a new event and switches to it."
-    >
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="new-event-name">
-            Name <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="new-event-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Event name"
-          />
-        </div>
-
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox
-            checked={grantMode}
-            onCheckedChange={(checked) => setGrantMode(checked === true)}
-          />
-          Grant Mode
-        </label>
-
-        <div className="flex items-center gap-3">
-          <Button onClick={handleCreate} disabled={createEvent.isPending}>
-            {createEvent.isPending ? "Creating..." : "Create"}
-          </Button>
-          {error && <span className="text-sm text-destructive">{error}</span>}
-        </div>
-      </div>
-    </Section>
-  )
-}
-
 export default function SettingsPage() {
   const { user } = useAuth()
   const { currentEvent, isLoading } = useEvent()
@@ -488,11 +504,21 @@ export default function SettingsPage() {
           {isLoading || !currentEvent ? (
             <div className="space-y-6">
               <p className="text-muted-foreground">
-                {isLoading
-                  ? "Loading..."
-                  : "No event selected. Create one below to get started."}
+                {isLoading ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    No event selected.{" "}
+                    <Link
+                      to="/admin"
+                      className="underline transition-colors hover:text-foreground"
+                    >
+                      Create one in Admin
+                    </Link>{" "}
+                    to get started.
+                  </>
+                )}
               </p>
-              <CreateEventSection />
             </div>
           ) : (
             <div className="space-y-6">
@@ -506,7 +532,6 @@ export default function SettingsPage() {
               <BucketsSection />
               {grantMode && <GrantCategoriesSection />}
               <MembersSection />
-              <CreateEventSection />
             </div>
           )}
         </div>

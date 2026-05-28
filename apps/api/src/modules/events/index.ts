@@ -226,6 +226,58 @@ export const eventsModule = new Elysia({ prefix: "/events" })
         }
       )
 
+      .patch(
+        "/buckets/:bucketId",
+        async ({ body, params, user, membership, set }: any) => {
+          if (membership!.role !== "super" && !user!.isSuper) {
+            set.status = 403;
+            return { error: "Event admin access required" };
+          }
+
+          const [old] = await db
+            .select()
+            .from(eventBuckets)
+            .where(eq(eventBuckets.id, params.bucketId));
+
+          const [updated] = await db
+            .update(eventBuckets)
+            .set(body)
+            .where(
+              and(
+                eq(eventBuckets.id, params.bucketId),
+                eq(eventBuckets.eventId, params.eventId),
+                isNull(eventBuckets.deletedAt)
+              )
+            )
+            .returning();
+
+          if (!updated) {
+            set.status = 404;
+            return { error: "Bucket not found" };
+          }
+
+          const changes = diffFields(old, body);
+          if (changes) {
+            await logAudit({
+              eventId: params.eventId,
+              entityType: "event_bucket",
+              entityId: updated.id,
+              action: "update",
+              changes,
+              performedById: user!.id,
+            });
+          }
+
+          return updated;
+        },
+        {
+          body: t.Object({
+            name: t.Optional(t.String({ minLength: 1 })),
+            sortOrder: t.Optional(t.Number()),
+          }),
+        }
+      )
+
       .delete(
         "/buckets/:bucketId",
         async ({ params, user, membership, set }: any) => {
@@ -471,6 +523,58 @@ export const eventsModule = new Elysia({ prefix: "/events" })
         {
           body: t.Object({
             name: t.String({ minLength: 1 }),
+            sortOrder: t.Optional(t.Number()),
+          }),
+        }
+      )
+
+      .patch(
+        "/grant-categories/:categoryId",
+        async ({ body, params, user, membership, set }: any) => {
+          if (membership!.role !== "super" && !user!.isSuper) {
+            set.status = 403;
+            return { error: "Event admin access required" };
+          }
+
+          const [old] = await db
+            .select()
+            .from(grantCategories)
+            .where(eq(grantCategories.id, params.categoryId));
+
+          const [updated] = await db
+            .update(grantCategories)
+            .set(body)
+            .where(
+              and(
+                eq(grantCategories.id, params.categoryId),
+                eq(grantCategories.eventId, params.eventId),
+                isNull(grantCategories.deletedAt)
+              )
+            )
+            .returning();
+
+          if (!updated) {
+            set.status = 404;
+            return { error: "Category not found" };
+          }
+
+          const changes = diffFields(old, body);
+          if (changes) {
+            await logAudit({
+              eventId: params.eventId,
+              entityType: "grant_category",
+              entityId: updated.id,
+              action: "update",
+              changes,
+              performedById: user!.id,
+            });
+          }
+
+          return updated;
+        },
+        {
+          body: t.Object({
+            name: t.Optional(t.String({ minLength: 1 })),
             sortOrder: t.Optional(t.Number()),
           }),
         }

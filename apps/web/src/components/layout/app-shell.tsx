@@ -57,6 +57,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               Settings
             </a>
           )}
+          {user?.isSuper && (
+            <a
+              href="/admin"
+              className={buttonVariants({ variant: "outline", size: "sm" }) + " leading-none"}
+            >
+              Admin
+            </a>
+          )}
           <Button variant="ghost" size="sm" onClick={logout}>
             Sign out
           </Button>
