@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { AgGridReact, useGridFilter } from "ag-grid-react"
-import type { CustomFilterProps } from "ag-grid-react"
+import type { CustomFilterProps, CustomCellEditorProps } from "ag-grid-react"
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -15,11 +15,6 @@ import {
 } from "ag-grid-community"
 import { useMarqueeSelect } from "../../hooks/use-table-select"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@workspace/ui/components/popover"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import type {
   Expense,
@@ -103,51 +98,38 @@ const STATUS_VALUES: ExpenseStatus[] = [
   "reimbursed",
 ]
 
-// --- Click-to-open dropdown cell (status / paid by / bucket) ---
+// --- Custom popup cell editor (double-click to edit; options list) ---
 
-interface DropdownOption {
+interface EditorOption {
   value: string
   label: React.ReactNode
 }
 
-function DropdownCell({
-  display,
-  options,
-  onSelect,
-}: {
-  display: React.ReactNode
-  options: DropdownOption[]
-  onSelect: (value: string) => void
-}) {
-  const [open, setOpen] = useState(false)
+function OptionsEditor(
+  props: CustomCellEditorProps<Expense, string | null> & {
+    options: EditorOption[]
+    current: string
+  }
+) {
+  const { onValueChange, stopEditing, options, current } = props
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className="flex h-full w-full items-center text-left outline-none"
-        // Stop AG Grid from consuming the mousedown (which otherwise steals the
-        // first click for cell focus/selection). base-ui drives open/close.
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {display}
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-auto min-w-[160px] gap-0 p-1"
-      >
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-            onClick={() => {
-              onSelect(opt.value)
-              setOpen(false)
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+    <div className="min-w-[160px] gap-0 rounded-md border bg-popover p-1 text-popover-foreground shadow-md outline-none">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          autoFocus={opt.value === current}
+          className={`flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground ${
+            opt.value === current ? "bg-accent/50" : ""
+          }`}
+          onClick={() => {
+            onValueChange(opt.value === "" ? null : opt.value)
+            stopEditing()
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -237,119 +219,77 @@ export function ExpenseTable({
   const updateExpense = useUpdateExpense()
   const deleteExpense = useDeleteExpense()
 
-  // Stable refs so handlers don't re-create when these objects change identity
-  // (undoStack and the react-query mutation get a fresh object every render —
-  // depending on them would invalidate columnDefs every marquee frame).
   const expensesRef = useRef(expenses)
   useEffect(() => {
     expensesRef.current = expenses
   }, [expenses])
 
-  const undoStackRef = useRef(undoStack)
-  useEffect(() => {
-    undoStackRef.current = undoStack
-  }, [undoStack])
-
-  const updateExpenseRef = useRef(updateExpense)
-  useEffect(() => {
-    updateExpenseRef.current = updateExpense
-  }, [updateExpense])
-
-  // Direct dropdown edit (status / paid by / bucket) — bypasses AG Grid editing.
-  // Stable identity (empty deps) keeps columnDefs from rebuilding per frame.
-  const dropdownEdit = useCallback(
-    (expenseId: string, field: string, value: string | null) => {
-      const expense = expensesRef.current.find((e) => e.id === expenseId)
-      if (!expense) return
-      const oldValue = (expense as unknown as Record<string, unknown>)[field]
-      if (oldValue === value) return
-      undoStackRef.current.push(expense, field, oldValue, value)
-      updateExpenseRef.current.mutate({
-        id: expenseId,
-        [field]: value,
-      } as Parameters<typeof updateExpense.mutate>[0])
-    },
-    []
-  )
-
-  // --- Dropdown cell renderers (click to open Popover) ---
+  // --- Badge cell renderers (display only; double-click opens the editor) ---
   const StatusRenderer = useMemo(() => {
     return function StatusRendererInner(props: ICellRendererParams<Expense>) {
       if (!props.data) return null
-      const id = props.data.id
-      return (
-        <DropdownCell
-          display={<StatusBadge status={props.data.status} />}
-          options={STATUS_VALUES.map((s) => ({
-            value: s,
-            label: <StatusBadge status={s} />,
-          }))}
-          onSelect={(v) => dropdownEdit(id, "status", v)}
-        />
-      )
+      return <StatusBadge status={props.data.status} />
     }
-  }, [dropdownEdit])
+  }, [])
 
   const PaidByRenderer = useMemo(() => {
     return function PaidByRendererInner(props: ICellRendererParams<Expense>) {
       if (!props.data) return null
-      const id = props.data.id
       const member = members.find((m) => m.userId === props.data!.paidById)
-      return (
-        <DropdownCell
-          display={
-            member ? (
-              <PaidByBadge name={member.userName} userId={member.userId} />
-            ) : (
-              <span className="text-muted-foreground italic">Unassigned</span>
-            )
-          }
-          options={[
-            {
-              value: "",
-              label: (
-                <span className="text-muted-foreground italic">Unassigned</span>
-              ),
-            },
-            ...members.map((m) => ({
-              value: m.userId,
-              label: <PaidByBadge name={m.userName} userId={m.userId} />,
-            })),
-          ]}
-          onSelect={(v) => dropdownEdit(id, "paidById", v || null)}
-        />
+      return member ? (
+        <PaidByBadge name={member.userName} userId={member.userId} />
+      ) : (
+        <span className="text-muted-foreground italic">Unassigned</span>
       )
     }
-  }, [members, dropdownEdit])
+  }, [members])
 
   const BucketRenderer = useMemo(() => {
     return function BucketRendererInner(props: ICellRendererParams<Expense>) {
       if (!props.data) return null
-      const id = props.data.id
       const bucket = buckets.find((b) => b.id === props.data!.bucketId)
-      return (
-        <DropdownCell
-          display={
-            bucket ? (
-              <>{bucket.name}</>
-            ) : (
-              <span className="text-muted-foreground italic">No bucket</span>
-            )
-          }
-          options={[
-            {
-              value: "",
-              label: (
-                <span className="text-muted-foreground italic">No bucket</span>
-              ),
-            },
-            ...buckets.map((b) => ({ value: b.id, label: b.name })),
-          ]}
-          onSelect={(v) => dropdownEdit(id, "bucketId", v || null)}
-        />
+      return bucket ? (
+        <>{bucket.name}</>
+      ) : (
+        <span className="text-muted-foreground italic">No bucket</span>
       )
     }
-  }, [buckets, dropdownEdit])
+  }, [buckets])
+
+  // --- Editor option lists ---
+  const statusEditorOptions = useMemo<EditorOption[]>(
+    () =>
+      STATUS_VALUES.map((s) => ({
+        value: s,
+        label: <StatusBadge status={s} />,
+      })),
+    []
+  )
+
+  const paidByEditorOptions = useMemo<EditorOption[]>(
+    () => [
+      {
+        value: "",
+        label: <span className="text-muted-foreground italic">Unassigned</span>,
+      },
+      ...members.map((m) => ({
+        value: m.userId,
+        label: <PaidByBadge name={m.userName} userId={m.userId} />,
+      })),
+    ],
+    [members]
+  )
+
+  const bucketEditorOptions = useMemo<EditorOption[]>(
+    () => [
+      {
+        value: "",
+        label: <span className="text-muted-foreground italic">No bucket</span>,
+      },
+      ...buckets.map((b) => ({ value: b.id, label: <>{b.name}</> })),
+    ],
+    [buckets]
+  )
 
   // --- Column definitions ---
   const columnDefs = useMemo<ColDef<Expense>[]>(() => {
@@ -406,7 +346,13 @@ export function ExpenseTable({
         field: "status",
         width: 160,
         cellRenderer: StatusRenderer,
-        editable: false,
+        editable: true,
+        cellEditor: OptionsEditor,
+        cellEditorPopup: true,
+        cellEditorParams: (params: { data?: Expense }) => ({
+          options: statusEditorOptions,
+          current: params.data?.status ?? "",
+        }),
         filter: SetFilter,
         filterParams: {
           options: STATUS_VALUES.map((s) => ({
@@ -421,7 +367,13 @@ export function ExpenseTable({
         field: "paidById",
         width: 150,
         cellRenderer: PaidByRenderer,
-        editable: false,
+        editable: true,
+        cellEditor: OptionsEditor,
+        cellEditorPopup: true,
+        cellEditorParams: (params: { data?: Expense }) => ({
+          options: paidByEditorOptions,
+          current: params.data?.paidById ?? "",
+        }),
         filter: SetFilter,
         filterParams: {
           options: [
@@ -436,7 +388,13 @@ export function ExpenseTable({
         field: "bucketId",
         width: 140,
         cellRenderer: BucketRenderer,
-        editable: false,
+        editable: true,
+        cellEditor: OptionsEditor,
+        cellEditorPopup: true,
+        cellEditorParams: (params: { data?: Expense }) => ({
+          options: bucketEditorOptions,
+          current: params.data?.bucketId ?? "",
+        }),
         filter: SetFilter,
         filterParams: {
           options: [
@@ -470,7 +428,16 @@ export function ExpenseTable({
         filter: false,
       },
     ]
-  }, [members, buckets, StatusRenderer, PaidByRenderer, BucketRenderer])
+  }, [
+    members,
+    buckets,
+    StatusRenderer,
+    PaidByRenderer,
+    BucketRenderer,
+    statusEditorOptions,
+    paidByEditorOptions,
+    bucketEditorOptions,
+  ])
 
   const defaultColDef = useMemo<ColDef<Expense>>(
     () => ({
