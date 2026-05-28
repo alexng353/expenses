@@ -40,12 +40,12 @@ interface ColumnOptions {
 
 export function getExpenseColumns(options: ColumnOptions) {
   const {
-    members, buckets, grantMode, onCellEdit, editingCell, setEditingCell,
+    members, buckets, onCellEdit, editingCell, setEditingCell,
     selectedRef, onSelectAll, onClearSelection, onCheckboxClick,
   } = options;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columns: ReturnType<typeof columnHelper.display>[] = [
+  const columns: any[] = [
     columnHelper.display({
       id: "select",
       size: 40,
@@ -90,11 +90,9 @@ export function getExpenseColumns(options: ColumnOptions) {
       ),
       size: 120,
       cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
         const value = row.original.date;
 
+        const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
         if (isEditing) {
           return (
             <input
@@ -146,10 +144,8 @@ export function getExpenseColumns(options: ColumnOptions) {
       enableColumnFilter: true,
       filterFn: "includesString",
       cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
 
+        const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
         if (isEditing) {
           return (
             <input
@@ -197,10 +193,8 @@ export function getExpenseColumns(options: ColumnOptions) {
       ),
       size: 130,
       cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
 
+        const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
         if (isEditing) {
           return (
             <input
@@ -263,16 +257,12 @@ export function getExpenseColumns(options: ColumnOptions) {
         if (!filterValue || filterValue.length === 0) return true;
         return filterValue.includes(row.original.status);
       },
-      cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
+      cell: ({ row }) => {
 
         return (
           <Popover>
             <PopoverTrigger
               className="cursor-pointer outline-none"
-              onClick={() => console.log("STATUS TRIGGER CLICKED", row.original.id)}
             >
               <StatusBadge status={row.original.status} />
             </PopoverTrigger>
@@ -281,10 +271,7 @@ export function getExpenseColumns(options: ColumnOptions) {
                 <button
                   key={s}
                   className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => {
-                    console.log("STATUS ITEM CLICKED", s);
-                    onCellEdit(row.original.id, "status", s);
-                  }}
+                  onClick={() => onCellEdit(row.original.id, "status", s)}
                 >
                   <StatusBadge status={s} />
                 </button>
@@ -305,10 +292,7 @@ export function getExpenseColumns(options: ColumnOptions) {
         if (!filterValue || filterValue.length === 0) return true;
         return filterValue.includes(row.original.paidById ?? "");
       },
-      cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
+      cell: ({ row }) => {
 
         const member = members.find((m) => m.userId === row.original.paidById);
 
@@ -353,10 +337,7 @@ export function getExpenseColumns(options: ColumnOptions) {
         if (!filterValue || filterValue.length === 0) return true;
         return filterValue.includes(row.original.bucketId ?? "");
       },
-      cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
+      cell: ({ row }) => {
 
         const bucket = buckets.find((b) => b.id === row.original.bucketId);
 
@@ -398,10 +379,8 @@ export function getExpenseColumns(options: ColumnOptions) {
       enableColumnFilter: true,
       filterFn: "includesString",
       cell: ({ row, column }) => {
-        const isEditing =
-          editingCell?.rowId === row.id &&
-          editingCell?.columnId === column.id;
 
+        const isEditing = editingCell?.rowId === row.id && editingCell?.columnId === column.id;
         if (isEditing) {
           return (
             <textarea

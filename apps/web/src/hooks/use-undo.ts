@@ -17,7 +17,7 @@ export function useUndoStack() {
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [redoStack, setRedoStack] = useState<UndoEntry[]>([]);
   const [toast, setToast] = useState<{ message: string } | null>(null);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const updateExpense = useUpdateExpense();
 
   const showToast = useCallback((message: string) => {

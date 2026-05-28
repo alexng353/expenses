@@ -9,7 +9,7 @@ export function useExpenseWebSocket() {
   const { currentEvent } = useEvent();
   const qc = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const connect = useCallback(async () => {
     if (!currentEvent?.id) return;

@@ -248,9 +248,16 @@ export function ExpenseTable({
         </div>
       )}
 
-      {/* Bulk actions toolbar */}
-      {selectedCount > 0 && (
-        <div className="bg-muted flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
+      {/* Bulk actions toolbar — always mounted, hidden when empty to avoid layout shift */}
+      <div
+        className="bg-muted flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-all duration-150"
+        style={{
+          height: selectedCount > 0 ? "auto" : 0,
+          padding: selectedCount > 0 ? undefined : 0,
+          overflow: "hidden",
+          opacity: selectedCount > 0 ? 1 : 0,
+        }}
+      >
           <span className="font-medium">
             {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
           </span>
@@ -299,8 +306,7 @@ export function ExpenseTable({
             <X className="mr-1 size-3.5" />
             Deselect
           </Button>
-        </div>
-      )}
+      </div>
 
       <div
         className="overflow-auto rounded-lg border"
@@ -333,7 +339,6 @@ export function ExpenseTable({
                       {header.column.getCanFilter() && (
                         <ColumnFilter
                           column={header.column}
-                          expenses={expenses}
                           members={members}
                           buckets={buckets}
                         />
@@ -445,12 +450,10 @@ export function ExpenseTable({
 // Per-column filter popover
 function ColumnFilter({
   column,
-  expenses,
   members,
   buckets,
 }: {
   column: any;
-  expenses: Expense[];
   members: EventMember[];
   buckets: EventBucket[];
 }) {
