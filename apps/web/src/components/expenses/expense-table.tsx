@@ -28,6 +28,7 @@ import { useUpdateExpense, useDeleteExpense } from "../../hooks/use-expenses"
 import { StatusBadge } from "./status-badge"
 import { PaidByBadge } from "./paid-by-badge"
 import { formatCurrency, formatDate, statusLabel } from "../../lib/format"
+import { formatExpensesMarkdown, copyText } from "../../lib/copy"
 import { Trash2, ArrowRightLeft, X, Paperclip } from "lucide-react"
 import type { useUndoStack } from "../../hooks/use-undo"
 
@@ -775,7 +776,9 @@ export function ExpenseTable({
         <ContextMenuPortal
           expense={contextMenuExpense}
           members={members}
+          buckets={buckets}
           position={contextMenuPos}
+          getSelectedRows={() => gridApi?.getSelectedRows() ?? []}
           onOpenModal={onOpenModal}
           onOpenReceipts={onOpenReceipts}
           onCellEdit={onCellEdit}
@@ -804,7 +807,9 @@ export function ExpenseTable({
 function ContextMenuPortal({
   expense,
   members,
+  buckets,
   position,
+  getSelectedRows,
   onOpenModal,
   onOpenReceipts,
   onCellEdit,
@@ -813,7 +818,9 @@ function ContextMenuPortal({
 }: {
   expense: Expense
   members: EventMember[]
+  buckets: EventBucket[]
   position: { x: number; y: number }
+  getSelectedRows: () => Expense[]
   onOpenModal: (expense?: Expense) => void
   onOpenReceipts: (expense: Expense) => void
   onCellEdit: (expenseId: string, field: string, value: unknown) => void
@@ -821,6 +828,17 @@ function ContextMenuPortal({
   onClose: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // The right-clicked row counts toward a "copy selection" only when it is part
+  // of the active multi-row selection. Otherwise we copy just that one row.
+  const selectedRows = getSelectedRows()
+  const rightClickedInSelection = selectedRows.some((r) => r.id === expense.id)
+  const copyRows =
+    rightClickedInSelection && selectedRows.length > 1 ? selectedRows : [expense]
+  const copyLabel =
+    rightClickedInSelection && selectedRows.length > 1
+      ? `Copy as markdown (${selectedRows.length})`
+      : "Copy as markdown"
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -878,6 +896,15 @@ function ContextMenuPortal({
         }}
       >
         Duplicate
+      </button>
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          copyText(formatExpensesMarkdown(copyRows, members, buckets))
+          onClose()
+        }}
+      >
+        {copyLabel}
       </button>
       <div className="my-1 h-px bg-border" />
       <div className="px-2 py-1 text-xs font-medium text-muted-foreground">

@@ -5,10 +5,12 @@ import type {
   EventBucket,
   ExpenseStatus,
 } from "../../lib/types"
-import { useUpdateExpense } from "../../hooks/use-expenses"
+import { useUpdateExpense, useDeleteExpense } from "../../hooks/use-expenses"
 import { formatCurrency, formatDate } from "../../lib/format"
+import { formatExpensesMarkdown, copyText } from "../../lib/copy"
 import { StatusBadge } from "./status-badge"
 import { PaidByBadge } from "./paid-by-badge"
+import { ExpenseContextMenu } from "./expense-context-menu"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Paperclip } from "lucide-react"
 
@@ -51,7 +53,47 @@ export function ExpenseKanban({
 }: ExpenseKanbanProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>("status")
   const updateExpense = useUpdateExpense()
+  const deleteExpense = useDeleteExpense()
   const dragExpenseRef = useRef<string | null>(null)
+
+  const handleCardStatusChange = useCallback(
+    (expense: Expense, status: ExpenseStatus) => {
+      if (expense.status === status) return
+      undoStack.push(expense, "status", expense.status, status)
+      updateExpense.mutate({ id: expense.id, status } as Parameters<
+        typeof updateExpense.mutate
+      >[0])
+    },
+    [updateExpense, undoStack]
+  )
+
+  const handleCardPaidByChange = useCallback(
+    (expense: Expense, userId: string | null) => {
+      if (expense.paidById === userId) return
+      undoStack.push(expense, "paidById", expense.paidById, userId)
+      updateExpense.mutate({ id: expense.id, paidById: userId } as Parameters<
+        typeof updateExpense.mutate
+      >[0])
+    },
+    [updateExpense, undoStack]
+  )
+
+  const handleCardDuplicate = useCallback(
+    (expense: Expense) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, createdAt, updatedAt, receiptCount, createdById, ...rest } =
+        expense
+      onOpenModal(rest as unknown as Expense)
+    },
+    [onOpenModal]
+  )
+
+  const handleCardCopy = useCallback(
+    (expense: Expense) => {
+      copyText(formatExpensesMarkdown([expense], members, buckets))
+    },
+    [members, buckets]
+  )
 
   const groups = useMemo(() => {
     const map = new Map<string, { label: string; expenses: Expense[] }>()
@@ -190,6 +232,17 @@ export function ExpenseKanban({
                       onDragStart={handleDragStart}
                       onClick={() => onOpenModal(expense)}
                       onReceiptClick={() => onOpenReceipts(expense)}
+                      onEdit={() => onOpenModal(expense)}
+                      onDuplicate={() => handleCardDuplicate(expense)}
+                      onStatusChange={(status) =>
+                        handleCardStatusChange(expense, status)
+                      }
+                      onPaidByChange={(userId) =>
+                        handleCardPaidByChange(expense, userId)
+                      }
+                      onViewReceipts={() => onOpenReceipts(expense)}
+                      onDelete={() => deleteExpense.mutate(expense.id)}
+                      onCopy={() => handleCardCopy(expense)}
                     />
                   ))
                 )}
@@ -217,6 +270,13 @@ function KanbanCard({
   onDragStart,
   onClick,
   onReceiptClick,
+  onEdit,
+  onDuplicate,
+  onStatusChange,
+  onPaidByChange,
+  onViewReceipts,
+  onDelete,
+  onCopy,
 }: {
   expense: Expense
   members: EventMember[]
@@ -225,56 +285,75 @@ function KanbanCard({
   onDragStart: (id: string) => void
   onClick: () => void
   onReceiptClick: () => void
+  onEdit: () => void
+  onDuplicate: () => void
+  onStatusChange: (status: ExpenseStatus) => void
+  onPaidByChange: (userId: string | null) => void
+  onViewReceipts: () => void
+  onDelete: () => void
+  onCopy: () => void
 }) {
   const member = members.find((m) => m.userId === expense.paidById)
   const bucket = buckets.find((b) => b.id === expense.bucketId)
 
   return (
-    <div
-      draggable
-      onDragStart={() => onDragStart(expense.id)}
-      onClick={onClick}
-      className="cursor-pointer rounded-lg border bg-background p-3 shadow-sm transition-shadow hover:shadow-md active:shadow-lg"
+    <ExpenseContextMenu
+      expense={expense}
+      members={members}
+      onEdit={onEdit}
+      onDuplicate={onDuplicate}
+      onStatusChange={onStatusChange}
+      onPaidByChange={onPaidByChange}
+      onViewReceipts={onViewReceipts}
+      onDelete={onDelete}
+      onCopy={onCopy}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h4 className="text-sm leading-tight font-medium">{expense.name}</h4>
-        <span className="shrink-0 text-sm font-semibold tabular-nums">
-          {formatCurrency(expense.amountCents)}
-        </span>
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {/* Show status unless grouped by status */}
-        {groupBy !== "status" && <StatusBadge status={expense.status} />}
-
-        {/* Show paid by unless grouped by paidById */}
-        {groupBy !== "paidById" && member && (
-          <PaidByBadge name={member.userName} userId={member.userId} />
-        )}
-
-        {/* Show bucket unless grouped by bucket */}
-        {groupBy !== "bucketId" && bucket && (
-          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {bucket.name}
+      <div
+        draggable
+        onDragStart={() => onDragStart(expense.id)}
+        onClick={onClick}
+        className="cursor-pointer rounded-lg border bg-background p-3 shadow-sm transition-shadow hover:shadow-md active:shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <h4 className="text-sm leading-tight font-medium">{expense.name}</h4>
+          <span className="shrink-0 text-sm font-semibold tabular-nums">
+            {formatCurrency(expense.amountCents)}
           </span>
-        )}
-      </div>
+        </div>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{formatDate(expense.date) || "No date"}</span>
-        {expense.receiptCount > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onReceiptClick()
-            }}
-            className="flex items-center gap-0.5 hover:text-foreground"
-          >
-            <Paperclip className="size-3" />
-            {expense.receiptCount}
-          </button>
-        )}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {/* Show status unless grouped by status */}
+          {groupBy !== "status" && <StatusBadge status={expense.status} />}
+
+          {/* Show paid by unless grouped by paidById */}
+          {groupBy !== "paidById" && member && (
+            <PaidByBadge name={member.userName} userId={member.userId} />
+          )}
+
+          {/* Show bucket unless grouped by bucket */}
+          {groupBy !== "bucketId" && bucket && (
+            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {bucket.name}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+          <span>{formatDate(expense.date) || "No date"}</span>
+          {expense.receiptCount > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onReceiptClick()
+              }}
+              className="flex items-center gap-0.5 hover:text-foreground"
+            >
+              <Paperclip className="size-3" />
+              {expense.receiptCount}
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </ExpenseContextMenu>
   )
 }

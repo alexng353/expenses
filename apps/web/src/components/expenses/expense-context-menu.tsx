@@ -13,6 +13,7 @@ import type { Expense, EventMember, ExpenseStatus } from "../../lib/types"
 import {
   Pencil,
   Copy,
+  ClipboardCopy,
   ArrowRightLeft,
   User,
   Paperclip,
@@ -38,6 +39,7 @@ interface ExpenseContextMenuProps {
   onPaidByChange: (userId: string | null) => void
   onViewReceipts: () => void
   onDelete: () => void
+  onCopy?: () => void
 }
 
 export function ExpenseContextMenu({
@@ -50,6 +52,7 @@ export function ExpenseContextMenu({
   onPaidByChange,
   onViewReceipts,
   onDelete,
+  onCopy,
 }: ExpenseContextMenuProps) {
   return (
     <ContextMenu>
@@ -63,6 +66,12 @@ export function ExpenseContextMenu({
           <Copy className="mr-2 size-4" />
           Duplicate
         </ContextMenuItem>
+        {onCopy && (
+          <ContextMenuItem onClick={onCopy}>
+            <ClipboardCopy className="mr-2 size-4" />
+            Copy as markdown
+          </ContextMenuItem>
+        )}
 
         <ContextMenuSeparator />
 

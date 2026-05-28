@@ -1,8 +1,14 @@
-import { useMemo } from "react"
+import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import { useExpenseSummary } from "../../hooks/use-expenses"
 import { formatCurrency } from "../../lib/format"
+import {
+  formatSummaryMarkdown,
+  formatSummaryPlaintext,
+  copyText,
+  copyPng,
+} from "../../lib/copy"
 import { Separator } from "@workspace/ui/components/separator"
-import type { Expense, EventBucket } from "../../lib/types"
+import type { Expense, EventBucket, EventSummary } from "../../lib/types"
 
 interface SummaryPanelProps {
   selectedExpenses?: Expense[]
@@ -14,6 +20,13 @@ export function SummaryPanel({
   buckets = [],
 }: SummaryPanelProps) {
   const { data: summary, isLoading } = useExpenseSummary()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenuPos({ x: e.clientX, y: e.clientY })
+  }, [])
 
   // Compute selected breakdown
   const selectedSummary = useMemo(() => {
@@ -64,7 +77,11 @@ export function SummaryPanel({
   if (!summary) return null
 
   return (
-    <div className="space-y-4">
+    <div
+      ref={panelRef}
+      onContextMenu={handleContextMenu}
+      className="space-y-4"
+    >
       {/* Selected expenses section */}
       {selectedSummary && (
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
@@ -173,6 +190,83 @@ export function SummaryPanel({
           </>
         )}
       </div>
+
+      {menuPos && (
+        <SummaryCopyMenu
+          summary={summary}
+          buckets={buckets}
+          panelRef={panelRef}
+          position={menuPos}
+          onClose={() => setMenuPos(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function SummaryCopyMenu({
+  summary,
+  buckets,
+  panelRef,
+  position,
+  onClose,
+}: {
+  summary: EventSummary
+  buckets: EventBucket[]
+  panelRef: React.RefObject<HTMLDivElement | null>
+  position: { x: number; y: number }
+  onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handler)
+    }, 0)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("mousedown", handler)
+    }
+  }, [onClose])
+
+  return (
+    <div
+      ref={menuRef}
+      className="fixed z-50 min-w-[180px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      style={{ left: position.x, top: position.y }}
+    >
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          copyText(formatSummaryMarkdown(summary, buckets))
+          onClose()
+        }}
+      >
+        Copy as Markdown
+      </button>
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          copyText(formatSummaryPlaintext(summary, buckets))
+          onClose()
+        }}
+      >
+        Copy as Plaintext
+      </button>
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+        onClick={() => {
+          if (panelRef.current) copyPng(panelRef.current)
+          onClose()
+        }}
+      >
+        Copy as Image
+      </button>
     </div>
   )
 }
