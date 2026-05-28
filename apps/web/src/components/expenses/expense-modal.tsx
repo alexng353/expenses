@@ -10,6 +10,13 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Textarea } from "@workspace/ui/components/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { CurrencyInput } from "../shared/currency-input"
 import { AutocompleteInput } from "../shared/autocomplete-input"
 import type {
@@ -49,6 +56,11 @@ interface FormState {
   grantCategoryId: string
   grantSubLabel: string
 }
+
+// base-ui Select does not handle empty-string values cleanly (placeholder
+// display, controlled value matching), so we use a sentinel for the
+// unassigned/no-bucket/none options and map it back to "" at the boundary.
+const NONE = "__none__"
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -297,61 +309,76 @@ export function ExpenseModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="expense-status">Status</Label>
-              <select
-                id="expense-status"
+              <Select
                 value={form.status}
-                onChange={(e) =>
-                  setField("status", e.target.value as ExpenseStatus)
-                }
-                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+                onValueChange={(v) => setField("status", v as ExpenseStatus)}
               >
-                <option value="outstanding">Outstanding</option>
-                <option value="awaiting_approval">Awaiting Approval</option>
-                <option value="approved">Approved</option>
-                <option value="paid">Paid</option>
-                <option value="reimbursed">Reimbursed</option>
-              </select>
+                <SelectTrigger id="expense-status" className="w-full" size="sm">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="outstanding">Outstanding</SelectItem>
+                  <SelectItem value="awaiting_approval">
+                    Awaiting Approval
+                  </SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="reimbursed">Reimbursed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="expense-paid-by">Paid By</Label>
-              <select
-                id="expense-paid-by"
-                value={form.paidById}
-                onChange={(e) => setField("paidById", e.target.value)}
-                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+              <Select
+                value={form.paidById || NONE}
+                onValueChange={(v) =>
+                  setField("paidById", !v || v === NONE ? "" : v)
+                }
               >
-                <option value="">Unassigned</option>
-                {members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.userName}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  id="expense-paid-by"
+                  className="w-full"
+                  size="sm"
+                >
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Unassigned</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId}>
+                      {m.userName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           {/* Bucket */}
           <div className="space-y-1.5">
             <Label htmlFor="expense-bucket">Bucket</Label>
-            <select
-              id="expense-bucket"
-              value={form.bucketId}
-              onChange={(e) => {
-                const id = e.target.value
+            <Select
+              value={form.bucketId || NONE}
+              onValueChange={(v) => {
+                const id = !v || v === NONE ? "" : v
                 setField("bucketId", id)
                 const bucket = buckets.find((b) => b.id === id)
                 if (bucket) setField("grantSubLabel", bucket.name.toUpperCase())
                 else setField("grantSubLabel", "")
               }}
-              className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
             >
-              <option value="">No bucket</option>
-              {buckets.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="expense-bucket" className="w-full" size="sm">
+                <SelectValue placeholder="No bucket" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>No bucket</SelectItem>
+                {buckets.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Notes */}
@@ -370,19 +397,28 @@ export function ExpenseModal({
           {grantMode && (
             <div className="space-y-1.5">
               <Label htmlFor="expense-grant-cat">Category</Label>
-              <select
-                id="expense-grant-cat"
-                value={form.grantCategoryId}
-                onChange={(e) => setField("grantCategoryId", e.target.value)}
-                className="h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+              <Select
+                value={form.grantCategoryId || NONE}
+                onValueChange={(v) =>
+                  setField("grantCategoryId", !v || v === NONE ? "" : v)
+                }
               >
-                <option value="">None</option>
-                {grantCategories.map((gc) => (
-                  <option key={gc.id} value={gc.id}>
-                    {gc.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  id="expense-grant-cat"
+                  className="w-full"
+                  size="sm"
+                >
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>None</SelectItem>
+                  {grantCategories.map((gc) => (
+                    <SelectItem key={gc.id} value={gc.id}>
+                      {gc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

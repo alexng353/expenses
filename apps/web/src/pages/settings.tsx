@@ -20,11 +20,19 @@ import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Checkbox } from "@workspace/ui/components/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import type { EventMember } from "../lib/types"
 import { ArrowLeft, X } from "lucide-react"
 
-const SELECT_CLASS =
-  "h-9 w-full appearance-none rounded-lg border border-input bg-background px-2.5 py-0 text-sm leading-9 outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
+// base-ui Select does not handle empty-string values cleanly, so the
+// "select a user" placeholder option uses a sentinel mapped back to "".
+const NONE = "__none__"
 
 const ROLES: EventMember["role"][] = [
   "readonly",
@@ -395,23 +403,30 @@ function MembersSection() {
               </div>
             </div>
 
-            <select
-              aria-label={`Role for ${member.userName}`}
+            <Select
               value={member.role}
-              onChange={(e) =>
+              onValueChange={(v) =>
                 updateMember.mutate({
                   memberId: member.id,
-                  role: e.target.value as EventMember["role"],
+                  role: v as EventMember["role"],
                 })
               }
-              className={SELECT_CLASS + " w-36"}
             >
-              {ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                aria-label={`Role for ${member.userName}`}
+                className="w-36"
+                size="sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
               <Checkbox
@@ -440,23 +455,32 @@ function MembersSection() {
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <select
-          aria-label="Select user to add"
-          value={addUserId}
-          onChange={(e) => setAddUserId(e.target.value)}
-          className={SELECT_CLASS + " flex-1"}
+        <Select
+          value={addUserId || NONE}
+          onValueChange={(v) => setAddUserId(!v || v === NONE ? "" : v)}
         >
-          <option value="">
-            {availableUsers.length === 0
-              ? "No users available"
-              : "Select a user..."}
-          </option>
-          {availableUsers.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name} ({user.email})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label="Select user to add"
+            className="flex-1"
+            size="sm"
+            disabled={availableUsers.length === 0}
+          >
+            <SelectValue
+              placeholder={
+                availableUsers.length === 0
+                  ? "No users available"
+                  : "Select a user..."
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {availableUsers.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.name} ({user.email})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           type="button"
           variant="outline"

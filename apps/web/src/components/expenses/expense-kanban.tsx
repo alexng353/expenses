@@ -12,6 +12,13 @@ import { StatusBadge } from "./status-badge"
 import { PaidByBadge } from "./paid-by-badge"
 import { ExpenseContextMenu } from "./expense-context-menu"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { Paperclip } from "lucide-react"
 
 type GroupBy = "status" | "bucketId" | "paidById"
@@ -176,15 +183,16 @@ export function ExpenseKanban({
         <span className="text-sm font-medium text-muted-foreground">
           Group by:
         </span>
-        <select
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-          className="rounded-lg border border-input bg-background px-2 py-1 text-sm outline-none focus:border-ring"
-        >
-          <option value="status">Status</option>
-          <option value="bucketId">Bucket</option>
-          <option value="paidById">Paid By</option>
-        </select>
+        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as GroupBy)}>
+          <SelectTrigger size="sm">
+            <SelectValue placeholder="Group by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="status">Status</SelectItem>
+            <SelectItem value="bucketId">Bucket</SelectItem>
+            <SelectItem value="paidById">Paid By</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Kanban columns */}
