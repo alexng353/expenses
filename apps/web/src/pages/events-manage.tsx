@@ -244,6 +244,7 @@ export default function EventsManagePage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               getRowId={(params) => params.data.id}
+              rowHeight={44}
               onCellValueChanged={onCellValueChanged}
               stopEditingWhenCellsLoseFocus={true}
               domLayout="normal"
