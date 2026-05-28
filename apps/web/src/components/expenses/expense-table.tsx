@@ -597,8 +597,8 @@ export function ExpenseTable({
         {...getContainerProps()}
         style={{
           ...getContainerProps().style,
-          height: "calc(100vh - 280px)",
-          minHeight: 300,
+          maxHeight: "calc(100vh - 280px)",
+          overflow: "auto",
         }}
       >
         <AgGridReact<Expense>
@@ -619,6 +619,7 @@ export function ExpenseTable({
           onCellContextMenu={onCellContextMenu}
           stopEditingWhenCellsLoseFocus={true}
           suppressContextMenu={true}
+          domLayout="autoHeight"
           animateRows={false}
           noRowsOverlayComponent={() => (
             <div className="py-8 text-muted-foreground">
