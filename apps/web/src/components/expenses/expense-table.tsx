@@ -119,12 +119,14 @@ function DropdownCell({
   options: DropdownOption[]
   onSelect: (value: string) => void
 }) {
+  const [open, setOpen] = useState(false)
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="flex h-full w-full items-center text-left outline-none"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
+        // Open on mousedown — fires before AG Grid's click selection so a
+        // single click both selects the row and opens the dropdown.
+        onMouseDown={() => setOpen(true)}
       >
         {display}
       </PopoverTrigger>
@@ -136,7 +138,10 @@ function DropdownCell({
           <button
             key={opt.value}
             className="flex w-full items-center rounded-md px-2 py-1 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-            onClick={() => onSelect(opt.value)}
+            onClick={() => {
+              onSelect(opt.value)
+              setOpen(false)
+            }}
           >
             {opt.label}
           </button>
