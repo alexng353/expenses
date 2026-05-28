@@ -108,7 +108,7 @@ export function ExpenseTable({
     getFilteredRowModel: getFilteredRowModel(),
     getRowId: (row) => row.id,
     enableColumnResizing: true,
-    columnResizeMode: "onEnd",
+    columnResizeMode: "onChange",
   });
 
   const { rows } = table.getRowModel();
@@ -143,10 +143,15 @@ export function ExpenseTable({
     });
   }, [subscribeLive]);
 
+  // Ref to selected — columns read this without memo invalidation
+  const selectedStateRef = useRef(selected);
+  useEffect(() => { selectedStateRef.current = selected; }, [selected]);
+
   const selectedCount = selected.size;
   const activeFilterCount = columnFilters.length;
 
-  // Now build columns with selection info for the checkbox column
+  // Columns with selection — selectedRef is stable, so this memo only
+  // invalidates on structural changes (members, buckets, editingCell), never on selection
   const columnsWithSelection = useMemo(
     () =>
       getExpenseColumns({
@@ -156,15 +161,15 @@ export function ExpenseTable({
         onCellEdit,
         editingCell,
         setEditingCell,
-        selected,
+        selectedRef: selectedStateRef,
         onSelectAll: selectAll,
         onClearSelection: clearSelection,
         onCheckboxClick: handleCheckboxClick,
       }),
-    [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell, selected, selectAll, clearSelection, handleCheckboxClick]
+    [members, buckets, grantMode, onCellEdit, editingCell, setEditingCell, selectAll, clearSelection, handleCheckboxClick]
   );
 
-  // Update table columns to include selection
+  // Update table columns to include selection callbacks
   table.setOptions((prev) => ({ ...prev, columns: columnsWithSelection }));
 
   // Notify parent of selection changes
@@ -300,7 +305,7 @@ export function ExpenseTable({
           maxHeight: "calc(100vh - 280px)",
         }}
       >
-        <Table style={{ tableLayout: "fixed", width: table.getTotalSize() }}>
+        <Table style={{ tableLayout: "fixed", width: Math.max(table.getTotalSize(), 100) + "px", minWidth: "100%" }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

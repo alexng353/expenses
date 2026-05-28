@@ -1,3 +1,4 @@
+import type React from "react";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { Expense, EventMember, EventBucket } from "../../lib/types";
 import { formatCurrency, formatDate } from "../../lib/format";
@@ -27,8 +28,8 @@ interface ColumnOptions {
   ) => void;
   editingCell: { rowId: string; columnId: string } | null;
   setEditingCell: (cell: { rowId: string; columnId: string } | null) => void;
-  /** External selection state from useTableSelect */
-  selected?: Set<string>;
+  /** Ref to external selection state — read inside cells without causing column memo invalidation */
+  selectedRef?: React.RefObject<Set<string>>;
   /** Select/deselect all visible rows */
   onSelectAll?: () => void;
   /** Clear all selection */
@@ -40,7 +41,7 @@ interface ColumnOptions {
 export function getExpenseColumns(options: ColumnOptions) {
   const {
     members, buckets, grantMode, onCellEdit, editingCell, setEditingCell,
-    selected, onSelectAll, onClearSelection, onCheckboxClick,
+    selectedRef, onSelectAll, onClearSelection, onCheckboxClick,
   } = options;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,27 +51,25 @@ export function getExpenseColumns(options: ColumnOptions) {
       size: 40,
       enableResizing: false,
       header: ({ table }) => {
+        const sel = selectedRef?.current;
         const allRowIds = table.getRowModel().rows.map((r) => r.id);
-        const allSelected = selected ? allRowIds.length > 0 && allRowIds.every((id) => selected.has(id)) : false;
-        const someSelected = selected ? !allSelected && allRowIds.some((id) => selected.has(id)) : false;
+        const allSelected = sel ? allRowIds.length > 0 && allRowIds.every((id) => sel.has(id)) : false;
+        const someSelected = sel ? !allSelected && allRowIds.some((id) => sel.has(id)) : false;
 
         return (
           <Checkbox
             checked={allSelected}
             indeterminate={someSelected}
             onCheckedChange={(checked) => {
-              if (checked) {
-                onSelectAll?.();
-              } else {
-                onClearSelection?.();
-              }
+              if (checked) onSelectAll?.();
+              else onClearSelection?.();
             }}
             aria-label="Select all"
           />
         );
       },
       cell: ({ row }) => {
-        const isSelected = selected ? selected.has(row.id) : false;
+        const isSelected = selectedRef?.current?.has(row.id) ?? false;
         return (
           <Checkbox
             checked={isSelected}
