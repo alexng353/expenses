@@ -39,3 +39,4 @@ dist-ssr
 
 # Uploads (dev storage)
 apps/api/uploads/
+.claude/
