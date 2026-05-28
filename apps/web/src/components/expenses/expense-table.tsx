@@ -189,7 +189,6 @@ export function ExpenseTable({
     return [
       {
         headerName: "",
-        field: "id" as keyof Expense,
         width: 48,
         maxWidth: 48,
         checkboxSelection: true,
@@ -199,6 +198,8 @@ export function ExpenseTable({
         resizable: false,
         editable: false,
         suppressHeaderMenuButton: true,
+        valueGetter: () => null,
+        cellRenderer: () => null,
       },
       {
         headerName: "Date",
@@ -244,12 +245,9 @@ export function ExpenseTable({
           values: statusOptions,
         },
         valueFormatter: (params) => statusLabel(params.value ?? ""),
-        filter: "agSetColumnFilter",
-        filterParams: {
-          values: statusOptions,
-          valueFormatter: (params: { value: string }) =>
-            statusLabel(params.value),
-        },
+        filter: "agTextColumnFilter",
+        filterValueGetter: (params) =>
+          statusLabel(params.data?.status ?? ""),
       },
       {
         headerName: "Paid By",
@@ -263,12 +261,9 @@ export function ExpenseTable({
         },
         valueFormatter: (params) =>
           paidByValueMap.get(params.value ?? "") ?? "Unassigned",
-        filter: "agSetColumnFilter",
-        filterParams: {
-          values: paidByOptions,
-          valueFormatter: (params: { value: string }) =>
-            paidByValueMap.get(params.value) ?? "Unassigned",
-        },
+        filter: "agTextColumnFilter",
+        filterValueGetter: (params) =>
+          paidByValueMap.get(params.data?.paidById ?? "") ?? "Unassigned",
       },
       {
         headerName: "Bucket",
@@ -282,12 +277,9 @@ export function ExpenseTable({
         },
         valueFormatter: (params) =>
           bucketValueMap.get(params.value ?? "") ?? "No bucket",
-        filter: "agSetColumnFilter",
-        filterParams: {
-          values: bucketOptions,
-          valueFormatter: (params: { value: string }) =>
-            bucketValueMap.get(params.value) ?? "No bucket",
-        },
+        filter: "agTextColumnFilter",
+        filterValueGetter: (params) =>
+          bucketValueMap.get(params.data?.bucketId ?? "") ?? "No bucket",
       },
       {
         headerName: "Notes",

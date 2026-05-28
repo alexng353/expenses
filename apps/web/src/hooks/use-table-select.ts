@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 const DRAG_THRESHOLD = 3
 
 const INTERACTIVE_SELECTORS =
-  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"], [data-slot="popover-trigger"], [data-editable], [class*="cursor-col-resize"], .ag-header'
+  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"], [data-slot="popover-trigger"], [data-editable], [class*="cursor-col-resize"], .ag-header, .ag-checkbox-input, .ag-selection-checkbox, .ag-cell-edit-wrapper'
 
 function isInteractive(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
@@ -137,6 +137,22 @@ export function useMarqueeSelect({
         updateMarqueeDiv(rect)
         const intersected = new Set(getIntersectingRows(rect))
         pendingSelectionRef.current = intersected
+
+        // Highlight AG Grid rows during drag via CSS class
+        const container = containerRef.current
+        if (container) {
+          container
+            .querySelectorAll<HTMLElement>("[row-id]")
+            .forEach((el) => {
+              const rowId = el.getAttribute("row-id")
+              if (rowId && intersected.has(rowId)) {
+                el.classList.add("ag-row-selected")
+              } else {
+                el.classList.remove("ag-row-selected")
+              }
+            })
+        }
+
         for (const listener of liveListenersRef.current) {
           listener(pendingSelectionRef.current)
         }
