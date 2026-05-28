@@ -41,14 +41,8 @@ interface ExpenseTableProps {
   onOpenModal: (expense?: Expense) => void;
   onOpenReceipts: (expense: Expense) => void;
   undoStack: ReturnType<typeof useUndoStack>;
-  /** Callback to expose selected expenses to the parent (for summary panel) */
+  /** Callback — fires on committed selection AND during marquee drag (via rAF) */
   onSelectionChange?: (selectedExpenses: Expense[]) => void;
-  /** Expose the live subscription so parent can track marquee selection without table re-renders */
-  selectionRef?: React.MutableRefObject<{
-    subscribeLive: (listener: (ids: Set<string>) => void) => () => void;
-    marqueeActive: boolean;
-    selected: Set<string>;
-  } | null>;
 }
 
 export function ExpenseTable({
@@ -60,7 +54,6 @@ export function ExpenseTable({
   onOpenReceipts,
   undoStack,
   onSelectionChange,
-  selectionRef,
 }: ExpenseTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [editingCell, setEditingCell] = useState<{
@@ -134,12 +127,21 @@ export function ExpenseTable({
     subscribeLive,
   } = useTableSelect(rowIds);
 
-  // Expose live selection to parent via ref (no re-renders)
+  // Stream live marquee selection to parent (updates summary, not table)
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  useEffect(() => { onSelectionChangeRef.current = onSelectionChange; }, [onSelectionChange]);
+  const expensesRef = useRef(expenses);
+  useEffect(() => { expensesRef.current = expenses; }, [expenses]);
+
   useEffect(() => {
-    if (selectionRef) {
-      selectionRef.current = { subscribeLive, marqueeActive, selected };
-    }
-  }, [selectionRef, subscribeLive, marqueeActive, selected]);
+    return subscribeLive((ids) => {
+      if (onSelectionChangeRef.current) {
+        onSelectionChangeRef.current(
+          expensesRef.current.filter((e) => ids.has(e.id))
+        );
+      }
+    });
+  }, [subscribeLive]);
 
   const selectedCount = selected.size;
   const activeFilterCount = columnFilters.length;

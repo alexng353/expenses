@@ -128,7 +128,7 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         return (
           <span
-            className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted"
+            data-editable className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted"
             onClick={() =>
               setEditingCell({ rowId: row.id, columnId: column.id })
             }
@@ -181,7 +181,7 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         return (
           <span
-            className="cursor-pointer rounded px-1.5 py-0.5 font-medium hover:bg-muted"
+            data-editable className="cursor-pointer rounded px-1.5 py-0.5 font-medium hover:bg-muted"
             onClick={() =>
               setEditingCell({ rowId: row.id, columnId: column.id })
             }
@@ -243,7 +243,7 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         return (
           <span
-            className="cursor-pointer rounded px-1.5 py-0.5 text-right tabular-nums hover:bg-muted"
+            data-editable className="cursor-pointer rounded px-1.5 py-0.5 text-right tabular-nums hover:bg-muted"
             onClick={() =>
               setEditingCell({ rowId: row.id, columnId: column.id })
             }
@@ -436,7 +436,7 @@ export function getExpenseColumns(options: ColumnOptions) {
 
         return (
           <span
-            className="block cursor-pointer whitespace-pre-wrap break-words rounded px-1.5 py-0.5 text-sm leading-snug hover:bg-muted"
+            data-editable className="block cursor-pointer whitespace-pre-wrap break-words rounded px-1.5 py-0.5 text-sm leading-snug hover:bg-muted"
             style={{ maxWidth: 350 }}
             onClick={() =>
               setEditingCell({ rowId: row.id, columnId: column.id })

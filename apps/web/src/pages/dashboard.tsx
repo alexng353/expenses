@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { AppShell } from "../components/layout/app-shell";
 import { ExpenseTable } from "../components/expenses/expense-table";
 import { ExpenseKanban } from "../components/expenses/expense-kanban";
@@ -11,7 +11,6 @@ import { useEvent } from "../hooks/use-event";
 import { useExpenses } from "../hooks/use-expenses";
 import { useExpenseWebSocket } from "../hooks/use-websocket";
 import { useUndoStack } from "../hooks/use-undo";
-import { useLiveSelection } from "../hooks/use-live-selection";
 import { ExportButton } from "../components/exports/export-button";
 import { Button } from "@workspace/ui/components/button";
 import {
@@ -37,21 +36,6 @@ export default function DashboardPage() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [selectedExpenses, setSelectedExpenses] = useState<Expense[]>([]);
 
-  // Ref-based bridge to the table's selection hook (avoids re-rendering the table)
-  const selectionRef = useRef<{
-    subscribeLive: (listener: (ids: Set<string>) => void) => () => void;
-    marqueeActive: boolean;
-    selected: Set<string>;
-  } | null>(null);
-
-  const sel = selectionRef.current;
-  const { liveExpenses } = useLiveSelection(
-    expenses,
-    sel?.selected ?? new Set(),
-    sel?.marqueeActive ?? false,
-    sel?.subscribeLive ?? (() => () => {})
-  );
-
   const grantMode = currentEvent?.grantMode ?? false;
 
   const handleOpenModal = useCallback((expense?: Expense) => {
@@ -75,9 +59,6 @@ export default function DashboardPage() {
       </AppShell>
     );
   }
-
-  // Use live selection during marquee, committed selection otherwise
-  const displayedSelection = liveExpenses.length > 0 ? liveExpenses : selectedExpenses;
 
   return (
     <AppShell>
@@ -105,7 +86,6 @@ export default function DashboardPage() {
         <div className="flex gap-6">
           {/* Left: main content */}
           <div className="min-w-0 flex-1">
-            {/* View toggle: Table / Kanban */}
             <Tabs defaultValue="table">
               <TabsList>
                 <TabsTrigger value="table">
@@ -121,9 +101,7 @@ export default function DashboardPage() {
               <TabsContent value="table" className="mt-3">
                 {expensesLoading ? (
                   <div className="flex h-40 items-center justify-center">
-                    <p className="text-muted-foreground">
-                      Loading expenses...
-                    </p>
+                    <p className="text-muted-foreground">Loading expenses...</p>
                   </div>
                 ) : (
                   <ExpenseTable
@@ -135,7 +113,6 @@ export default function DashboardPage() {
                     onOpenReceipts={handleOpenReceipts}
                     undoStack={undoStack}
                     onSelectionChange={setSelectedExpenses}
-                    selectionRef={selectionRef}
                   />
                 )}
               </TabsContent>
@@ -143,9 +120,7 @@ export default function DashboardPage() {
               <TabsContent value="kanban" className="mt-3">
                 {expensesLoading ? (
                   <div className="flex h-40 items-center justify-center">
-                    <p className="text-muted-foreground">
-                      Loading expenses...
-                    </p>
+                    <p className="text-muted-foreground">Loading expenses...</p>
                   </div>
                 ) : (
                   <ExpenseKanban
@@ -163,15 +138,11 @@ export default function DashboardPage() {
 
           {/* Right: summary sidebar */}
           <div className="hidden w-72 shrink-0 lg:block">
-            <SummaryPanel
-              selectedExpenses={displayedSelection}
-              buckets={buckets}
-            />
+            <SummaryPanel selectedExpenses={selectedExpenses} buckets={buckets} />
           </div>
         </div>
       </div>
 
-      {/* Modals */}
       <ExpenseModal
         open={modalOpen}
         onOpenChange={setModalOpen}
@@ -189,7 +160,6 @@ export default function DashboardPage() {
         expense={receiptExpense}
       />
 
-      {/* Undo toast */}
       {undoStack.toast && (
         <UndoToast
           message={undoStack.toast.message}
