@@ -235,6 +235,17 @@ export default function AdminUsersPage() {
           y={menu.y}
           onClose={() => setMenu(null)}
           items={[
+            menu.user.isSuper
+              ? {
+                  label: "Demote from super",
+                  onClick: () =>
+                    updateUser.mutate({ id: menu.user.id, isSuper: false }),
+                }
+              : {
+                  label: "Make super",
+                  onClick: () =>
+                    updateUser.mutate({ id: menu.user.id, isSuper: true }),
+                },
             menu.user.archived
               ? {
                   label: "Unarchive",
