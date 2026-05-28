@@ -124,9 +124,9 @@ function DropdownCell({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="flex h-full w-full items-center text-left outline-none"
-        // Open on mousedown — fires before AG Grid's click selection so a
-        // single click both selects the row and opens the dropdown.
-        onMouseDown={() => setOpen(true)}
+        // Stop AG Grid from consuming the mousedown (which otherwise steals the
+        // first click for cell focus/selection). base-ui drives open/close.
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {display}
       </PopoverTrigger>
