@@ -185,7 +185,8 @@ export default function AdminUsersPage() {
       {
         headerName: "Actions",
         colId: "actions",
-        width: 140,
+        width: 150,
+        minWidth: 150,
         suppressSizeToFit: true,
         sortable: false,
         filter: false,

@@ -172,7 +172,8 @@ export default function EventsManagePage() {
       {
         headerName: "Actions",
         colId: "actions",
-        width: 150,
+        width: 180,
+        minWidth: 180,
         suppressSizeToFit: true,
         sortable: false,
         filter: false,
