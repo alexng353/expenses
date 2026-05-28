@@ -147,7 +147,12 @@ export function ExpenseTable({
   const selectedStateRef = useRef(selected);
   useEffect(() => { selectedStateRef.current = selected; }, [selected]);
 
-  const selectedCount = selected.size;
+  const [liveCount, setLiveCount] = useState(0);
+  useEffect(() => {
+    return subscribeLive((ids) => setLiveCount(ids.size));
+  }, [subscribeLive]);
+
+  const selectedCount = marqueeActive ? liveCount : selected.size;
   const activeFilterCount = columnFilters.length;
 
   // Columns with selection — selectedRef is stable, so this memo only
