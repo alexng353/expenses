@@ -183,7 +183,7 @@ function SetFilter(
 
   return (
     <div className="w-48 p-2">
-      <div className="max-h-[min(300px,calc(100vh-200px))] space-y-1 overflow-y-auto pr-1">
+      <div className="max-h-[calc(100vh-120px)] space-y-1 overflow-y-auto">
         {options.map((opt) => (
           <label
             key={opt.value}
