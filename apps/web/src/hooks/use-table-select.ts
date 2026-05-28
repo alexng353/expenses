@@ -2,9 +2,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 
 const DRAG_THRESHOLD = 3;
 
-/** Tags that should never trigger row selection on click/mousedown */
 const INTERACTIVE_SELECTORS =
-  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"]';
+  'input, textarea, select, button, a, [role="checkbox"], [role="button"], [role="link"], [data-slot="checkbox"], [data-slot="popover-trigger"]';
 
 function isInteractive(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -14,11 +13,9 @@ function isInteractive(el: EventTarget | null): boolean {
 interface PendingAction {
   startX: number;
   startY: number;
-  /** Selection state at the moment of mousedown (for ctrl+marquee additive) */
   frozenSelection: Set<string>;
   ctrlKey: boolean;
   shiftKey: boolean;
-  /** The row that was mousedown-ed on (null = container background) */
   rowId: string | null;
 }
 
@@ -32,32 +29,30 @@ interface MarqueeRect {
 export function useTableSelect(rowIds: string[]) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [anchorId, setAnchorId] = useState<string | null>(null);
-  const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
 
+  // Marquee state: only the div style is driven by a ref + rAF for zero re-renders during drag
+  const [marqueeActive, setMarqueeActive] = useState(false);
+  const marqueeElRef = useRef<HTMLDivElement | null>(null);
+  const marqueeRectRef = useRef<MarqueeRect | null>(null);
   const pendingRef = useRef<PendingAction | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const rafRef = useRef<number>(0);
 
-  // Keep a stable ref to rowIds for range computation
+  // Pending selection during marquee — committed on mouseup
+  const pendingSelectionRef = useRef<Set<string>>(new Set());
+  // Subscribers that want live updates during marquee (toolbar, summary)
+  const liveListenersRef = useRef<Set<(ids: Set<string>) => void>>(new Set());
+
   const rowIdsRef = useRef(rowIds);
   useEffect(() => { rowIdsRef.current = rowIds; }, [rowIds]);
 
-  // Keep a stable ref to anchorId for use in handlers
   const anchorIdRef = useRef(anchorId);
   useEffect(() => { anchorIdRef.current = anchorId; }, [anchorId]);
 
-  // Keep a stable ref to selected for use in handlers
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
-  // Keep a ref to marquee for stale-closure-safe checks in mouseup
-  const marqueeRef = useRef(marquee);
-  useEffect(() => { marqueeRef.current = marquee; }, [marquee]);
-
-  /**
-   * Compute the range of IDs between two row IDs (inclusive), using the
-   * current visible order.
-   */
   const getRange = useCallback((fromId: string, toId: string): string[] => {
     const ids = rowIdsRef.current;
     const fromIdx = ids.indexOf(fromId);
@@ -68,10 +63,6 @@ export function useTableSelect(rowIds: string[]) {
     return ids.slice(lo, hi + 1);
   }, []);
 
-  /**
-   * Compute which row IDs intersect with the given rectangle (relative to
-   * the container's scroll viewport).
-   */
   const getIntersectingRows = useCallback((rect: MarqueeRect): string[] => {
     const container = containerRef.current;
     if (!container) return [];
@@ -88,13 +79,11 @@ export function useTableSelect(rowIds: string[]) {
 
     rowRefs.current.forEach((el, id) => {
       const elRect = el.getBoundingClientRect();
-      // Convert element rect to container-relative coords (accounting for scroll)
       const elTop = elRect.top - containerRect.top + scrollTop;
       const elBottom = elTop + elRect.height;
       const elLeft = elRect.left - containerRect.left + scrollLeft;
       const elRight = elLeft + elRect.width;
 
-      // AABB intersection
       if (elRight >= minX && elLeft <= maxX && elBottom >= minY && elTop <= maxY) {
         result.push(id);
       }
@@ -103,46 +92,34 @@ export function useTableSelect(rowIds: string[]) {
     return result;
   }, []);
 
-  // --- Click selection logic ---
   const handleClick = useCallback(
     (rowId: string | null, ctrlKey: boolean, shiftKey: boolean) => {
       if (rowId === null) {
-        // Clicked on container background
-        if (!ctrlKey && !shiftKey) {
-          setSelected(new Set());
-        }
+        if (!ctrlKey && !shiftKey) setSelected(new Set());
         return;
       }
 
       if (shiftKey && anchorIdRef.current) {
-        // Shift-click: range selection
         const range = getRange(anchorIdRef.current, rowId);
         const rangeSet = new Set(range);
         if (ctrlKey) {
-          // Shift+Ctrl: add range to existing
           setSelected((prev) => {
             const next = new Set(prev);
             for (const id of rangeSet) next.add(id);
             return next;
           });
         } else {
-          // Shift only: replace with range
           setSelected(rangeSet);
         }
-      } else if (ctrlKey || shiftKey) {
-        // Ctrl-click: toggle single row
+      } else if (ctrlKey) {
         setSelected((prev) => {
           const next = new Set(prev);
-          if (next.has(rowId)) {
-            next.delete(rowId);
-          } else {
-            next.add(rowId);
-          }
+          if (next.has(rowId)) next.delete(rowId);
+          else next.add(rowId);
           return next;
         });
         setAnchorId(rowId);
       } else {
-        // Plain click: select single
         setSelected(new Set([rowId]));
         setAnchorId(rowId);
       }
@@ -150,7 +127,37 @@ export function useTableSelect(rowIds: string[]) {
     [getRange]
   );
 
-  // --- Global mousemove/mouseup ---
+  // --- Marquee: update the div position via DOM, not React state ---
+  const updateMarqueeDiv = useCallback((rect: MarqueeRect) => {
+    const el = marqueeElRef.current;
+    if (!el) return;
+    const left = Math.min(rect.startX, rect.currentX);
+    const top = Math.min(rect.startY, rect.currentY);
+    const width = Math.abs(rect.currentX - rect.startX);
+    const height = Math.abs(rect.currentY - rect.startY);
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
+    el.style.display = "block";
+  }, []);
+
+  // Highlight rows during marquee via data attribute (no React re-render)
+  const updateRowHighlights = useCallback((intersected: Set<string>, frozen: Set<string>, ctrlKey: boolean) => {
+    const combined = ctrlKey
+      ? new Set([...frozen, ...intersected])
+      : intersected;
+
+    rowRefs.current.forEach((el, id) => {
+      const isSelected = combined.has(id);
+      if (isSelected) {
+        el.setAttribute("data-state", "selected");
+      } else {
+        el.removeAttribute("data-state");
+      }
+    });
+  }, []);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       const pending = pendingRef.current;
@@ -160,54 +167,63 @@ export function useTableSelect(rowIds: string[]) {
       if (!container) return;
 
       const containerRect = container.getBoundingClientRect();
-      const scrollLeft = container.scrollLeft;
-      const scrollTop = container.scrollTop;
-
-      const currentX = e.clientX - containerRect.left + scrollLeft;
-      const currentY = e.clientY - containerRect.top + scrollTop;
+      const currentX = e.clientX - containerRect.left + container.scrollLeft;
+      const currentY = e.clientY - containerRect.top + container.scrollTop;
 
       const dx = currentX - pending.startX;
       const dy = currentY - pending.startY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < DRAG_THRESHOLD) return;
+      if (!marqueeRectRef.current && (dx * dx + dy * dy) < DRAG_THRESHOLD * DRAG_THRESHOLD) return;
 
-      // Past threshold -- activate marquee
+      // Activate or update marquee — all via refs, no setState
       const rect: MarqueeRect = {
         startX: pending.startX,
         startY: pending.startY,
         currentX,
         currentY,
       };
-      setMarquee(rect);
+      marqueeRectRef.current = rect;
 
-      // Compute intersecting rows
-      const intersected = getIntersectingRows(rect);
-      if (pending.ctrlKey) {
-        // Additive: merge with frozen selection
-        const next = new Set(pending.frozenSelection);
-        for (const id of intersected) next.add(id);
-        setSelected(next);
-      } else {
-        setSelected(new Set(intersected));
+      if (!marqueeElRef.current) {
+        setMarqueeActive(true);
       }
+
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        updateMarqueeDiv(rect);
+        const intersected = new Set(getIntersectingRows(rect));
+        pendingSelectionRef.current = pending.ctrlKey
+          ? new Set([...pending.frozenSelection, ...intersected])
+          : intersected;
+        updateRowHighlights(intersected, pending.frozenSelection, pending.ctrlKey);
+        for (const listener of liveListenersRef.current) {
+          listener(pendingSelectionRef.current);
+        }
+      });
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = () => {
       const pending = pendingRef.current;
       if (!pending) return;
-
       pendingRef.current = null;
+      cancelAnimationFrame(rafRef.current);
 
-      if (marqueeRef.current) {
-        // Marquee was active -- selection already updated during mousemove
-        setMarquee(null);
+      if (marqueeRectRef.current) {
+        // Commit the pending selection computed during rAF
+        setSelected(new Set(pendingSelectionRef.current));
+        marqueeRectRef.current = null;
+        setMarqueeActive(false);
+        if (marqueeElRef.current) marqueeElRef.current.style.display = "none";
+        // Restore data-state from React on next render
         return;
       }
 
-      // Didn't exceed threshold -- treat as click
-      // But only if the mousedown was on a row (not intercepted by interactive element)
-      handleClick(pending.rowId, pending.ctrlKey || e.ctrlKey || e.metaKey, pending.shiftKey || e.shiftKey);
+      // Below threshold — treat as click
+      handleClick(
+        pending.rowId,
+        pending.ctrlKey,
+        pending.shiftKey
+      );
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -215,26 +231,21 @@ export function useTableSelect(rowIds: string[]) {
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      cancelAnimationFrame(rafRef.current);
     };
-  }, [handleClick, getIntersectingRows]);
+  }, [handleClick, getIntersectingRows, updateMarqueeDiv, updateRowHighlights]);
 
-  // --- Container mousedown (for marquee from blank area) ---
   const handleContainerMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only left button
       if (e.button !== 0) return;
-      // Don't start selection from interactive elements
       if (isInteractive(e.target)) return;
 
       const container = containerRef.current;
       if (!container) return;
 
       const containerRect = container.getBoundingClientRect();
-      const scrollLeft = container.scrollLeft;
-      const scrollTop = container.scrollTop;
-
-      const startX = e.clientX - containerRect.left + scrollLeft;
-      const startY = e.clientY - containerRect.top + scrollTop;
+      const startX = e.clientX - containerRect.left + container.scrollLeft;
+      const startY = e.clientY - containerRect.top + container.scrollTop;
 
       pendingRef.current = {
         startX,
@@ -248,26 +259,19 @@ export function useTableSelect(rowIds: string[]) {
     []
   );
 
-  // --- Row mousedown ---
   const handleRowMouseDown = useCallback(
     (e: React.MouseEvent<HTMLElement>, rowId: string) => {
-      // Only left button
       if (e.button !== 0) return;
-      // Don't start selection from interactive elements
       if (isInteractive(e.target)) return;
 
       const container = containerRef.current;
       if (!container) return;
 
-      // Prevent the container handler from also firing
       e.stopPropagation();
 
       const containerRect = container.getBoundingClientRect();
-      const scrollLeft = container.scrollLeft;
-      const scrollTop = container.scrollTop;
-
-      const startX = e.clientX - containerRect.left + scrollLeft;
-      const startY = e.clientY - containerRect.top + scrollTop;
+      const startX = e.clientX - containerRect.left + container.scrollLeft;
+      const startY = e.clientY - containerRect.top + container.scrollTop;
 
       pendingRef.current = {
         startX,
@@ -281,31 +285,23 @@ export function useTableSelect(rowIds: string[]) {
     []
   );
 
-  // --- Register row ref ---
   const registerRowRef = useCallback(
     (id: string) => (el: HTMLElement | null) => {
-      if (el) {
-        rowRefs.current.set(id, el);
-      } else {
-        rowRefs.current.delete(id);
-      }
+      if (el) rowRefs.current.set(id, el);
+      else rowRefs.current.delete(id);
     },
     []
   );
 
-  // --- Select / deselect all ---
   const selectAll = useCallback(() => {
     setSelected(new Set(rowIdsRef.current));
-    if (rowIdsRef.current.length > 0) {
-      setAnchorId(rowIdsRef.current[0]!);
-    }
+    if (rowIdsRef.current.length > 0) setAnchorId(rowIdsRef.current[0]!);
   }, []);
 
   const clearSelection = useCallback(() => {
     setSelected(new Set());
   }, []);
 
-  // --- Handle checkbox click with shift support ---
   const handleCheckboxClick = useCallback(
     (rowId: string, shiftKey: boolean) => {
       if (shiftKey && anchorIdRef.current) {
@@ -317,14 +313,10 @@ export function useTableSelect(rowIds: string[]) {
           return next;
         });
       } else {
-        // Toggle single
         setSelected((prev) => {
           const next = new Set(prev);
-          if (next.has(rowId)) {
-            next.delete(rowId);
-          } else {
-            next.add(rowId);
-          }
+          if (next.has(rowId)) next.delete(rowId);
+          else next.add(rowId);
           return next;
         });
         setAnchorId(rowId);
@@ -333,38 +325,33 @@ export function useTableSelect(rowIds: string[]) {
     [getRange]
   );
 
-  // --- Marquee style ---
-  const marqueeStyle = useMemo(() => {
-    if (!marquee) return null;
-    const left = Math.min(marquee.startX, marquee.currentX);
-    const top = Math.min(marquee.startY, marquee.currentY);
-    const width = Math.abs(marquee.currentX - marquee.startX);
-    const height = Math.abs(marquee.currentY - marquee.startY);
-    return { left, top, width, height } as const;
-  }, [marquee]);
-
-  // --- Public API ---
-  const getContainerProps = useCallback(() => {
-    return {
-      ref: containerRef,
-      onMouseDown: handleContainerMouseDown,
-      style: {
-        position: "relative" as const,
-        ...(marquee ? { userSelect: "none" as const } : {}),
-      },
-    };
-  }, [handleContainerMouseDown, marquee]);
+  const getContainerProps = useCallback(() => ({
+    ref: containerRef,
+    onMouseDown: handleContainerMouseDown,
+    style: {
+      position: "relative" as const,
+      ...(marqueeActive ? { userSelect: "none" as const } : {}),
+    },
+  }), [handleContainerMouseDown, marqueeActive]);
 
   const getRowProps = useCallback(
-    (id: string) => {
-      return {
-        ref: registerRowRef(id),
-        onMouseDown: (e: React.MouseEvent<HTMLElement>) =>
-          handleRowMouseDown(e, id),
-      };
-    },
+    (id: string) => ({
+      ref: registerRowRef(id),
+      onMouseDown: (e: React.MouseEvent<HTMLElement>) => handleRowMouseDown(e, id),
+    }),
     [registerRowRef, handleRowMouseDown]
   );
+
+  // Ref callback for the marquee div element
+  const marqueeRef = useCallback((el: HTMLDivElement | null) => {
+    marqueeElRef.current = el;
+    if (el) el.style.display = "none";
+  }, []);
+
+  const subscribeLive = useCallback((listener: (ids: Set<string>) => void) => {
+    liveListenersRef.current.add(listener);
+    return () => { liveListenersRef.current.delete(listener); };
+  }, []);
 
   return {
     selected,
@@ -374,6 +361,8 @@ export function useTableSelect(rowIds: string[]) {
     handleCheckboxClick,
     getContainerProps,
     getRowProps,
-    marqueeStyle,
+    marqueeActive,
+    marqueeRef,
+    subscribeLive,
   };
 }

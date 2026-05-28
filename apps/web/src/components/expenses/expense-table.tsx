@@ -43,6 +43,12 @@ interface ExpenseTableProps {
   undoStack: ReturnType<typeof useUndoStack>;
   /** Callback to expose selected expenses to the parent (for summary panel) */
   onSelectionChange?: (selectedExpenses: Expense[]) => void;
+  /** Expose the live subscription so parent can track marquee selection without table re-renders */
+  selectionRef?: React.MutableRefObject<{
+    subscribeLive: (listener: (ids: Set<string>) => void) => () => void;
+    marqueeActive: boolean;
+    selected: Set<string>;
+  } | null>;
 }
 
 export function ExpenseTable({
@@ -54,6 +60,7 @@ export function ExpenseTable({
   onOpenReceipts,
   undoStack,
   onSelectionChange,
+  selectionRef,
 }: ExpenseTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [editingCell, setEditingCell] = useState<{
@@ -122,8 +129,17 @@ export function ExpenseTable({
     handleCheckboxClick,
     getContainerProps,
     getRowProps,
-    marqueeStyle,
+    marqueeActive,
+    marqueeRef,
+    subscribeLive,
   } = useTableSelect(rowIds);
+
+  // Expose live selection to parent via ref (no re-renders)
+  useEffect(() => {
+    if (selectionRef) {
+      selectionRef.current = { subscribeLive, marqueeActive, selected };
+    }
+  }, [selectionRef, subscribeLive, marqueeActive, selected]);
 
   const selectedCount = selected.size;
   const activeFilterCount = columnFilters.length;
@@ -388,19 +404,12 @@ export function ExpenseTable({
           </TableBody>
         </Table>
 
-        {/* Marquee selection rectangle */}
-        {marqueeStyle && (
-          <div
-            className="pointer-events-none absolute border border-primary/60 bg-primary/10"
-            style={{
-              left: marqueeStyle.left,
-              top: marqueeStyle.top,
-              width: marqueeStyle.width,
-              height: marqueeStyle.height,
-              zIndex: 20,
-            }}
-          />
-        )}
+        {/* Marquee selection rectangle — positioned via ref, not state */}
+        <div
+          ref={marqueeRef}
+          className="pointer-events-none absolute border border-primary/60 bg-primary/10"
+          style={{ zIndex: 20, display: "none" }}
+        />
       </div>
 
       <div className="flex items-center justify-between px-2 text-sm text-muted-foreground">
