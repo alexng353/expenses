@@ -30,10 +30,10 @@ export function useTableSelect(rowIds: string[]) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [anchorId, setAnchorId] = useState<string | null>(null);
 
-  // Marquee state: only the div style is driven by a ref + rAF for zero re-renders during drag
   const [marqueeActive, setMarqueeActive] = useState(false);
   const marqueeElRef = useRef<HTMLDivElement | null>(null);
   const marqueeRectRef = useRef<MarqueeRect | null>(null);
+  const marqueeActivatedRef = useRef(false);
   const pendingRef = useRef<PendingAction | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -184,7 +184,8 @@ export function useTableSelect(rowIds: string[]) {
       };
       marqueeRectRef.current = rect;
 
-      if (!marqueeElRef.current) {
+      if (!marqueeActivatedRef.current) {
+        marqueeActivatedRef.current = true;
         setMarqueeActive(true);
       }
 
@@ -209,9 +210,9 @@ export function useTableSelect(rowIds: string[]) {
       cancelAnimationFrame(rafRef.current);
 
       if (marqueeRectRef.current) {
-        // Commit the pending selection computed during rAF
         setSelected(new Set(pendingSelectionRef.current));
         marqueeRectRef.current = null;
+        marqueeActivatedRef.current = false;
         setMarqueeActive(false);
         if (marqueeElRef.current) marqueeElRef.current.style.display = "none";
         // Restore data-state from React on next render
