@@ -7,6 +7,8 @@ import VerifyEmailPage from "./pages/verify-email"
 import DashboardPage from "./pages/dashboard"
 import SettingsPage from "./pages/settings"
 import AdminPage from "./pages/admin"
+import AdminUsersPage from "./pages/admin-users"
+import AdminEventsPage from "./pages/admin-events"
 
 export default function App() {
   return (
@@ -40,6 +42,26 @@ export default function App() {
           <ProtectedRoute>
             <EventProvider>
               <AdminPage />
+            </EventProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute>
+            <EventProvider>
+              <AdminUsersPage />
+            </EventProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/events"
+        element={
+          <ProtectedRoute>
+            <EventProvider>
+              <AdminEventsPage />
             </EventProvider>
           </ProtectedRoute>
         }
