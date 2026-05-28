@@ -2,6 +2,13 @@ import type { ReactNode } from "react"
 import { useAuth } from "../../hooks/use-auth"
 import { useEvent } from "../../hooks/use-event"
 import { Button, buttonVariants } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@workspace/ui/components/dropdown-menu"
+import { ChevronsUpDown, Check } from "lucide-react"
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
@@ -12,17 +19,33 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-4">
           <h1 className="font-semibold">Expense Tracker</h1>
-          <select
-            value={currentEvent?.id ?? ""}
-            onChange={(e) => setCurrentEventId(e.target.value)}
-            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
-          >
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={
+                buttonVariants({ variant: "outline", size: "sm" }) +
+                " min-w-[180px] justify-between gap-2"
+              }
+            >
+              <span className="truncate">
+                {currentEvent?.name ?? "Select event"}
+              </span>
+              <ChevronsUpDown className="size-3.5 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[200px]">
+              {events.map((ev) => (
+                <DropdownMenuItem
+                  key={ev.id}
+                  onClick={() => setCurrentEventId(ev.id)}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="truncate">{ev.name}</span>
+                  {ev.id === currentEvent?.id && (
+                    <Check className="size-3.5 shrink-0" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user?.name}</span>

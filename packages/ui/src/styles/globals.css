@@ -138,6 +138,17 @@
     }
 }
 
+/* Native date input calendar icon — invert to be visible in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
+}
+.dark input[type="date"],
+.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
 /* AG Grid custom filter popup — let our content size itself, no inner scroll */
 .ag-filter,
 .ag-filter-wrapper,
