@@ -16,6 +16,8 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.26",
     "@workspace/ui": "workspace:*",
+    "ag-grid-community": "^35.3.0",
+    "ag-grid-react": "^35.3.0",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
