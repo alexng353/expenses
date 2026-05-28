@@ -166,11 +166,12 @@ export default function DashboardPage() {
       {/* Undo toast */}
       {undoStack.toast && (
         <UndoToast
-          expenseName={undoStack.toast.expenseName}
-          field={undoStack.toast.field}
+          message={undoStack.toast.message}
           onUndo={undoStack.undo}
+          onRedo={undoStack.redo}
           onDismiss={undoStack.dismissToast}
-          stackSize={undoStack.stackSize}
+          undoSize={undoStack.undoSize}
+          redoSize={undoStack.redoSize}
         />
       )}
     </AppShell>

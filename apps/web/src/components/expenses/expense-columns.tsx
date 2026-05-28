@@ -447,64 +447,6 @@ export function getExpenseColumns(options: ColumnOptions) {
     }),
   ];
 
-  // Grant Mode columns
-  if (grantMode) {
-    columns.push(
-      columnHelper.accessor("motionNumber", {
-        header: ({ column }) => (
-          <SortableHeader column={column} label="Motion #" />
-        ),
-        size: 100,
-        cell: ({ row, column }) => {
-          const isEditing =
-            editingCell?.rowId === row.id &&
-            editingCell?.columnId === column.id;
-
-          if (isEditing) {
-            return (
-              <input
-                type="number"
-                defaultValue={row.original.motionNumber ?? ""}
-                className="bg-transparent w-full text-sm outline-none ring-1 ring-ring rounded px-1.5 py-0.5 -mx-1.5 -my-0.5 box-content"
-                autoFocus
-                onBlur={(e) => {
-                  const val = e.target.value
-                    ? parseInt(e.target.value, 10)
-                    : null;
-                  onCellEdit(row.original.id, "motionNumber", val);
-                  setEditingCell(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const val = e.currentTarget.value
-                      ? parseInt(e.currentTarget.value, 10)
-                      : null;
-                    onCellEdit(row.original.id, "motionNumber", val);
-                    setEditingCell(null);
-                  }
-                  if (e.key === "Escape") setEditingCell(null);
-                }}
-              />
-            );
-          }
-
-          return (
-            <span
-              className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted"
-              onClick={() =>
-                setEditingCell({ rowId: row.id, columnId: column.id })
-              }
-            >
-              {row.original.motionNumber ?? (
-                <span className="text-muted-foreground italic">--</span>
-              )}
-            </span>
-          );
-        },
-      })
-    );
-  }
-
   return columns;
 }
 

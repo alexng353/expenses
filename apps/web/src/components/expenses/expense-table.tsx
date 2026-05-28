@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,8 +29,8 @@ import type { Expense, EventMember, EventBucket } from "../../lib/types";
 import { getExpenseColumns } from "./expense-columns";
 import { useUpdateExpense, useDeleteExpense } from "../../hooks/use-expenses";
 import { ExpenseContextMenu } from "./expense-context-menu";
-import { formatCurrency, statusLabel } from "../../lib/format";
-import { Trash2, ArrowRightLeft, Filter } from "lucide-react";
+import { formatCurrency } from "../../lib/format";
+import { Trash2, ArrowRightLeft, Filter, X } from "lucide-react";
 import type { useUndoStack } from "../../hooks/use-undo";
 
 interface ExpenseTableProps {
@@ -64,22 +64,11 @@ export function ExpenseTable({
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
 
-  // Stable row order: snapshot the sort order on initial load / filter change only
-  const sortKeyRef = useRef<string>("");
-  const stableExpenses = useMemo(() => {
-    // Re-sort only when the column filters or sorting state changes, not on data updates
-    const key = JSON.stringify({ sorting, columnFilters });
-    if (key !== sortKeyRef.current) {
-      sortKeyRef.current = key;
-    }
-    return expenses;
-  }, [expenses, sorting, columnFilters]);
-
   const onCellEdit = useCallback(
     (expenseId: string, field: string, value: unknown) => {
       const expense = expenses.find((e) => e.id === expenseId);
       if (expense) {
-        undoStack.push(expense, field, (expense as any)[field]);
+        undoStack.push(expense, field, (expense as any)[field], value);
       }
       updateExpense.mutate({ id: expenseId, [field]: value } as Parameters<typeof updateExpense.mutate>[0]);
     },
@@ -100,7 +89,7 @@ export function ExpenseTable({
   );
 
   const table = useReactTable({
-    data: stableExpenses,
+    data: expenses,
     columns,
     state: {
       sorting,
@@ -118,28 +107,41 @@ export function ExpenseTable({
     getRowId: (row) => row.id,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
-    filterFns: {
-      arrIncludesSome: (row, columnId, filterValue: string[]) => {
-        const val = row.getValue(columnId);
-        if (!filterValue || filterValue.length === 0) return true;
-        return filterValue.includes(String(val ?? ""));
-      },
-    },
   });
 
   const { rows } = table.getRowModel();
   const selectedCount = Object.keys(rowSelection).length;
   const activeFilterCount = columnFilters.length;
 
+  // Escape to deselect
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedCount > 0) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        setRowSelection({});
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [selectedCount]);
+
+  // Bulk edits: when user changes status/paidBy via popover on a selected row, apply to all selected
   const handleBulkStatusChange = useCallback(
     (status: string) => {
       const selectedIds = Object.keys(rowSelection);
+      const batch = selectedIds
+        .map((id) => expenses.find((e) => e.id === id))
+        .filter(Boolean) as Expense[];
+      undoStack.pushBatch(
+        batch.map((e) => ({ expense: e, field: "status", oldValue: e.status }))
+      );
       for (const id of selectedIds) {
         updateExpense.mutate({ id, status } as Parameters<typeof updateExpense.mutate>[0]);
       }
       setRowSelection({});
     },
-    [rowSelection, updateExpense]
+    [rowSelection, updateExpense, expenses, undoStack]
   );
 
   const handleBulkDelete = useCallback(() => {
@@ -152,31 +154,64 @@ export function ExpenseTable({
 
   return (
     <div className="space-y-2">
+      {/* Clear filters bar */}
+      {activeFilterCount > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm">
+          <Filter className="size-3.5 text-primary" />
+          <span>
+            {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active
+            {rows.length !== expenses.length && (
+              <> &middot; showing {rows.length} of {expenses.length}</>
+            )}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7"
+            onClick={() => setColumnFilters([])}
+          >
+            <X className="mr-1 size-3.5" />
+            Clear all filters
+          </Button>
+        </div>
+      )}
+
+      {/* Bulk actions toolbar */}
       {selectedCount > 0 && (
-        <div className="bg-muted flex items-center gap-3 rounded-lg px-4 py-2 text-sm">
+        <div className="bg-muted flex items-center gap-2 rounded-lg px-4 py-2 text-sm">
           <span className="font-medium">
             {selectedCount} row{selectedCount !== 1 ? "s" : ""} selected
           </span>
-          <div className="flex items-center gap-1">
+          <div className="ml-2 flex items-center gap-1">
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
+              className="h-7"
               onClick={() => handleBulkStatusChange("paid")}
             >
               <ArrowRightLeft className="mr-1 size-3.5" />
               Mark Paid
             </Button>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
+              className="h-7"
               onClick={() => handleBulkStatusChange("approved")}
             >
               Mark Approved
             </Button>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              className="text-destructive hover:text-destructive"
+              className="h-7"
+              onClick={() => handleBulkStatusChange("outstanding")}
+            >
+              Mark Outstanding
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7"
               onClick={handleBulkDelete}
             >
               <Trash2 className="mr-1 size-3.5" />
@@ -186,10 +221,11 @@ export function ExpenseTable({
           <Button
             variant="ghost"
             size="sm"
-            className="ml-auto"
+            className="ml-auto h-7"
             onClick={() => setRowSelection({})}
           >
-            Clear
+            <X className="mr-1 size-3.5" />
+            Deselect
           </Button>
         </div>
       )}
@@ -304,16 +340,8 @@ export function ExpenseTable({
         <span>
           {rows.length} expense{rows.length !== 1 ? "s" : ""}
           {activeFilterCount > 0 && rows.length !== expenses.length
-            ? ` (${expenses.length} total)`
+            ? ` of ${expenses.length}`
             : ""}
-          {activeFilterCount > 0 && (
-            <button
-              className="ml-2 text-xs underline hover:text-foreground"
-              onClick={() => setColumnFilters([])}
-            >
-              Clear filters
-            </button>
-          )}
         </span>
         <span className="font-medium text-foreground">
           Total:{" "}
@@ -342,7 +370,6 @@ function ColumnFilter({
   const filterValue = column.getFilterValue();
   const isActive = filterValue != null && (typeof filterValue === "string" ? filterValue.length > 0 : Array.isArray(filterValue) && filterValue.length > 0);
 
-  // Text-searchable columns
   if (columnId === "name" || columnId === "notes" || columnId === "date") {
     return (
       <Popover>
@@ -370,7 +397,6 @@ function ColumnFilter({
     );
   }
 
-  // Enum/set columns — show checkboxes
   let options: { value: string; label: string }[] = [];
 
   if (columnId === "status") {
@@ -392,7 +418,6 @@ function ColumnFilter({
       ...buckets.map((b) => ({ value: b.id, label: b.name })),
     ];
   } else if (columnId === "receiptCount") {
-    // Special: filter by has/missing receipts
     options = [
       { value: "has", label: "Has receipts" },
       { value: "missing", label: "Missing receipts" },

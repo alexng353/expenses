@@ -38,7 +38,6 @@ export function ExportButton() {
   return (
     <Button
       variant="outline"
-      size="sm"
       onClick={handleExport}
       disabled={loading}
     >
