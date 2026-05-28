@@ -213,7 +213,7 @@ export function ExpenseTable({
       {
         headerName: "Name",
         field: "name",
-        width: 220,
+        width: 300,
         editable: true,
         cellStyle: { fontWeight: 500 } as Record<string, string | number>,
         filter: "agTextColumnFilter",
@@ -284,8 +284,11 @@ export function ExpenseTable({
       {
         headerName: "Notes",
         field: "notes",
-        width: 250,
+        width: 350,
         editable: true,
+        cellEditor: "agLargeTextCellEditor",
+        cellEditorParams: { rows: 4, cols: 50 },
+        cellEditorPopup: true,
         cellStyle: { whiteSpace: "pre-wrap", lineHeight: "1.4" } as Record<
           string,
           string | number
@@ -324,9 +327,31 @@ export function ExpenseTable({
 
   // --- Event handlers ---
 
+  const COLUMN_STATE_KEY = "expense-table-column-state"
+
   const onGridReady = useCallback((event: GridReadyEvent<Expense>) => {
     setGridApi(event.api)
+    // Restore saved column widths/order from localStorage
+    try {
+      const saved = localStorage.getItem(COLUMN_STATE_KEY)
+      if (saved) {
+        const state = JSON.parse(saved)
+        event.api.applyColumnState({ state, applyOrder: false })
+      }
+    } catch {
+      // ignore bad data
+    }
   }, [])
+
+  const saveColumnState = useCallback(() => {
+    if (!gridApi) return
+    try {
+      const state = gridApi.getColumnState()
+      localStorage.setItem(COLUMN_STATE_KEY, JSON.stringify(state))
+    } catch {
+      // ignore
+    }
+  }, [gridApi])
 
   const expensesRef = useRef(expenses)
   useEffect(() => {
@@ -591,6 +616,9 @@ export function ExpenseTable({
           onGridReady={onGridReady}
           onCellValueChanged={onCellValueChanged}
           onSelectionChanged={onSelectionChanged}
+          onColumnResized={saveColumnState}
+          onColumnMoved={saveColumnState}
+          onSortChanged={saveColumnState}
           onCellContextMenu={onCellContextMenu}
           stopEditingWhenCellsLoseFocus={true}
           suppressContextMenu={true}
