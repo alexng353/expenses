@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="px-4 pt-4 lg:px-6 lg:pt-6">
+      <div className="px-4 lg:px-6">
         {/* Header row */}
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
