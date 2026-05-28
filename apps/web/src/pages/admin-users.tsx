@@ -6,6 +6,7 @@ import type {
   CellValueChangedEvent,
 } from "ag-grid-community"
 import { AdminShell } from "../components/layout/admin-shell"
+import { RowContextMenu } from "../components/admin/row-context-menu"
 import {
   useAllUsers,
   useCreateUser,
@@ -124,37 +125,11 @@ export default function AdminUsersPage() {
   const archiveUser = useArchiveUser()
   const unarchiveUser = useUnarchiveUser()
 
-  const ActionsRenderer = useMemo(() => {
-    return function ActionsRendererInner(
-      props: ICellRendererParams<AdminUser>
-    ) {
-      if (!props.data) return null
-      const u = props.data
-      return u.archived ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7"
-          disabled={unarchiveUser.isPending}
-          onClick={() => unarchiveUser.mutate(u.id)}
-        >
-          Unarchive
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7"
-          disabled={archiveUser.isPending}
-          onClick={() => archiveUser.mutate(u.id)}
-        >
-          Archive
-        </Button>
-      )
-    }
-  }, [archiveUser, unarchiveUser])
+  const [menu, setMenu] = useState<{
+    x: number
+    y: number
+    user: AdminUser
+  } | null>(null)
 
   const columnDefs = useMemo<ColDef<AdminUser>[]>(() => {
     return [
@@ -169,7 +144,8 @@ export default function AdminUsersPage() {
       {
         headerName: "Super",
         field: "isSuper",
-        width: 110,
+        flex: 1,
+        minWidth: 100,
         cellRenderer: SuperRenderer,
         editable: true,
         cellEditor: "agSelectCellEditor",
@@ -179,22 +155,12 @@ export default function AdminUsersPage() {
       {
         headerName: "Archived",
         field: "archived",
-        width: 120,
+        flex: 1,
+        minWidth: 110,
         cellRenderer: ArchivedRenderer,
       },
-      {
-        headerName: "Actions",
-        colId: "actions",
-        width: 150,
-        minWidth: 150,
-        suppressSizeToFit: true,
-        sortable: false,
-        filter: false,
-        editable: false,
-        cellRenderer: ActionsRenderer,
-      },
     ]
-  }, [ActionsRenderer])
+  }, [])
 
   const defaultColDef = useMemo<ColDef<AdminUser>>(
     () => ({
@@ -232,7 +198,7 @@ export default function AdminUsersPage() {
           <p className="mb-2 text-sm text-muted-foreground">
             {isLoading
               ? "Loading users..."
-              : `${users.length} user${users.length !== 1 ? "s" : ""}`}
+              : `${users.length} user${users.length !== 1 ? "s" : ""} · double-click to edit name/super, right-click to archive`}
           </p>
 
           {/* Bounded-height container so AG Grid virtualizes rows with
@@ -244,8 +210,14 @@ export default function AdminUsersPage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               getRowId={(params) => params.data.id}
-              rowHeight={44}
               onCellValueChanged={onCellValueChanged}
+              onCellContextMenu={(e) => {
+                const me = e.event as MouseEvent | undefined
+                if (!me || !e.data) return
+                me.preventDefault()
+                setMenu({ x: me.clientX, y: me.clientY, user: e.data })
+              }}
+              preventDefaultOnContextMenu={true}
               stopEditingWhenCellsLoseFocus={true}
               domLayout="normal"
               animateRows={false}
@@ -256,6 +228,26 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+
+      {menu && (
+        <RowContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            menu.user.archived
+              ? {
+                  label: "Unarchive",
+                  onClick: () => unarchiveUser.mutate(menu.user.id),
+                }
+              : {
+                  label: "Archive",
+                  variant: "destructive" as const,
+                  onClick: () => archiveUser.mutate(menu.user.id),
+                },
+          ]}
+        />
+      )}
     </AdminShell>
   )
 }

@@ -8,6 +8,7 @@ import type {
   CellValueChangedEvent,
 } from "ag-grid-community"
 import { AppShell } from "../components/layout/app-shell"
+import { RowContextMenu } from "../components/admin/row-context-menu"
 import { useAuth } from "../hooks/use-auth"
 import { useEvent } from "../hooks/use-event"
 import { useCreateEvent, useUpdateEvent } from "../hooks/use-event-mutations"
@@ -100,40 +101,25 @@ export default function EventsManagePage() {
   const updateEvent = useUpdateEvent()
   const navigate = useNavigate()
 
-  const ActionsRenderer = useMemo(() => {
-    return function ActionsRendererInner(props: ICellRendererParams<Event>) {
-      if (!props.data) return null
-      const ev = props.data
-      return (
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7"
-            onClick={() => {
-              setCurrentEventId(ev.id)
-              navigate("/events")
-            }}
-          >
-            Open
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7"
-            onClick={() => {
-              setCurrentEventId(ev.id)
-              navigate("/settings")
-            }}
-          >
-            Edit
-          </Button>
-        </div>
-      )
-    }
-  }, [navigate, setCurrentEventId])
+  const [menu, setMenu] = useState<{ x: number; y: number; ev: Event } | null>(
+    null
+  )
+
+  const openEvent = useCallback(
+    (ev: Event) => {
+      setCurrentEventId(ev.id)
+      navigate("/events")
+    },
+    [navigate, setCurrentEventId]
+  )
+
+  const editEvent = useCallback(
+    (ev: Event) => {
+      setCurrentEventId(ev.id)
+      navigate("/settings")
+    },
+    [navigate, setCurrentEventId]
+  )
 
   const columnDefs = useMemo<ColDef<Event>[]>(() => {
     return [
@@ -166,22 +152,12 @@ export default function EventsManagePage() {
       {
         headerName: "Created",
         field: "createdAt",
-        width: 130,
+        flex: 1,
+        minWidth: 120,
         valueFormatter: (params) => formatDate(params.value),
       },
-      {
-        headerName: "Actions",
-        colId: "actions",
-        width: 180,
-        minWidth: 180,
-        suppressSizeToFit: true,
-        sortable: false,
-        filter: false,
-        editable: false,
-        cellRenderer: ActionsRenderer,
-      },
     ]
-  }, [ActionsRenderer])
+  }, [])
 
   const defaultColDef = useMemo<ColDef<Event>>(
     () => ({
@@ -232,7 +208,8 @@ export default function EventsManagePage() {
           </div>
 
           <p className="mb-2 text-sm text-muted-foreground">
-            {events.length} event{events.length !== 1 ? "s" : ""}
+            {events.length} event{events.length !== 1 ? "s" : ""} &middot;
+            double-click a row to open, right-click for more
           </p>
 
           {/* Bounded-height container so AG Grid virtualizes rows with
@@ -244,8 +221,17 @@ export default function EventsManagePage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               getRowId={(params) => params.data.id}
-              rowHeight={44}
               onCellValueChanged={onCellValueChanged}
+              onRowDoubleClicked={(e) => {
+                if (e.data) openEvent(e.data)
+              }}
+              onCellContextMenu={(e) => {
+                const me = e.event as MouseEvent | undefined
+                if (!me || !e.data) return
+                me.preventDefault()
+                setMenu({ x: me.clientX, y: me.clientY, ev: e.data })
+              }}
+              preventDefaultOnContextMenu={true}
               stopEditingWhenCellsLoseFocus={true}
               domLayout="normal"
               animateRows={false}
@@ -256,6 +242,18 @@ export default function EventsManagePage() {
           </div>
         </div>
       </div>
+
+      {menu && (
+        <RowContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: "Open", onClick: () => openEvent(menu.ev) },
+            { label: "Edit settings", onClick: () => editEvent(menu.ev) },
+          ]}
+        />
+      )}
     </AppShell>
   )
 }
