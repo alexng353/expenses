@@ -55,6 +55,69 @@ export const usersModule = new Elysia({ prefix: "/users" })
     }
   )
 
+  // Update user
+  .patch(
+    "/:userId",
+    async ({ body, params, set }) => {
+      const updateObject: { name?: string; isSuper?: boolean } = {};
+      if (body.name !== undefined) {
+        updateObject.name = body.name;
+      }
+      if (body.isSuper !== undefined) {
+        updateObject.isSuper = body.isSuper;
+      }
+
+      if (body.name === undefined && body.isSuper === undefined) {
+        const user = await db.query.users.findFirst({
+          where: and(eq(users.id, params.userId), isNull(users.deletedAt)),
+        });
+        if (!user) {
+          set.status = 404;
+          return { error: "User not found" };
+        }
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          isSuper: user.isSuper,
+          archived: user.archived,
+          emailVerified: user.emailVerified,
+          avatarSource: user.avatarSource,
+          createdAt: user.createdAt,
+        };
+      }
+
+      const [user] = await db
+        .update(users)
+        .set(updateObject)
+        .where(
+          and(eq(users.id, params.userId), isNull(users.deletedAt))
+        )
+        .returning();
+      if (!user) {
+        set.status = 404;
+        return { error: "User not found" };
+      }
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isSuper: user.isSuper,
+        archived: user.archived,
+        emailVerified: user.emailVerified,
+        avatarSource: user.avatarSource,
+        createdAt: user.createdAt,
+      };
+    },
+    {
+      body: t.Object({
+        name: t.Optional(t.String({ minLength: 1 })),
+        isSuper: t.Optional(t.Boolean()),
+      }),
+      params: t.Object({ userId: t.String() }),
+    }
+  )
+
   // Archive user
   .post(
     "/:userId/archive",
