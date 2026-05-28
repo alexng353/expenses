@@ -88,9 +88,25 @@ export async function copyText(text: string): Promise<void> {
 
 /** Render a DOM node to a PNG and copy it to the clipboard. */
 export async function copyPng(node: HTMLElement): Promise<void> {
-  const blob = await toBlob(node)
+  // Resolve a concrete background so the PNG isn't transparent. Walk up from
+  // the node to find the first non-transparent background, falling back to the
+  // page background.
+  let bg = ""
+  let el: HTMLElement | null = node
+  while (el) {
+    const c = getComputedStyle(el).backgroundColor
+    if (c && c !== "transparent" && c !== "rgba(0, 0, 0, 0)") {
+      bg = c
+      break
+    }
+    el = el.parentElement
+  }
+  if (!bg) bg = getComputedStyle(document.body).backgroundColor
+
+  const blob = await toBlob(node, {
+    backgroundColor: bg,
+    pixelRatio: 2,
+  })
   if (!blob) throw new Error("Failed to render node to PNG")
-  await navigator.clipboard.write([
-    new ClipboardItem({ "image/png": blob }),
-  ])
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
 }
